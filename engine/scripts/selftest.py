@@ -333,6 +333,161 @@ def main():
     check(len(one) == len(many) and {e["link"] for e in one} == {e["link"] for e in many},
           f"并发与串行抓取条目一致（{len(one)} 条，离线缓存）")
 
+    print("[14] 信源自动发现与健康检查")
+    import discover
+    import json
+    import urllib.error as _urlerr
+
+    rss_feed = """<?xml version="1.0"?><rss version="2.0"><channel><title>Probe Feed</title>
+      <item><title>Probe item</title><link>https://probe.example/a</link>
+      <pubDate>Thu, 12 Nov 2026 10:00:00 GMT</pubDate><description>d</description></item></channel></rss>"""
+    page_html = ('<!doctype html><head>'
+                 '<link rel="alternate" type="application/rss+xml" title="RSS" href="/feed.xml">'
+                 '<link rel="alternate" type="text/html" href="/not-a-feed">'
+                 '<link rel="alternate" type="application/atom+xml" '
+                 'title="Comments" href="https://blog.example/comments/feed/"></head>')
+    opml = """<?xml version="1.0"?><opml><body>
+      <outline title="Probe" text="Probe" type="rss"
+        xmlUrl="https://probe.example/feed.xml" htmlUrl="https://probe.example/"/>
+      <outline text="Dup" type="rss" xmlUrl="HTTPS://Probe.Example/feed.xml/"/>
+      <outline text="NoUrl" type="rss"/>
+      </body></opml>"""
+    opml2 = opml.replace(
+        'xmlUrl="https://probe.example/feed.xml"',
+        'xmlUrl="https://probe.example/second.xml"').replace(
+        'xmlUrl="HTTPS://Probe.Example/feed.xml/"',
+        'xmlUrl="https://probe.example/second.xml/"')
+
+    with tempfile.TemporaryDirectory() as td:
+        td = _pl.Path(td)
+        # 全部落盘路径重定向到临时目录，绝不污染真实 data/
+        discover.SUGGESTIONS_FILE = td / "source-suggestions.json"
+        feeds.FEEDS_CONF = td / "feeds.json"
+        feeds.HEALTH_FILE = td / "source-health.json"
+        feeds.save_conf({"sources": [
+            {"id": "old", "name": "Old", "url": "https://old.example/rss",
+             "kind": "rss", "group": "g", "enabled": True},
+            {"id": "manual-off", "name": "M", "url": "https://m.example/rss",
+             "kind": "rss", "group": "g", "enabled": False, "manual_disabled": True},
+        ]})
+
+        # _http_get 打桩：按 URL 返回首页/feed/OPML/404
+        def fake_get(url, accept="*/*"):
+            if url == "https://path.example/":
+                return "<html><head></head><body>no feed links</body></html>", url
+            if "path.example" in url and url.endswith("/feed.xml"):
+                return rss_feed, url                    # 常见路径探测命中
+            if url.startswith("https://blog.example/") and "feed.xml" not in url:
+                return page_html, url
+            if "probe.example" in url or url.endswith("/feed.xml"):
+                return rss_feed, url  # final_url 保持请求 URL，模拟无重定向
+            if url.endswith("catalog.opml"):
+                return opml, url
+            if url.endswith("catalog2.opml"):
+                return opml2, url
+            raise _urlerr.URLError("boom")
+        discover._http_get = fake_get
+
+        # 通道 1：网页 link 标签发现，相对路径转绝对、非 feed 类型过滤、评论 feed 剔除
+        cands = discover.discover_from_page(
+            {"url": "https://blog.example/", "name": "B", "group": "科技媒体"})
+        check(cands == ["https://blog.example/feed.xml"],
+              f"网页发现只留有效 RSS 链接（过滤 text/html 与评论 feed）: {cands}")
+
+        # 待审队列四态：added → duplicate → exists → invalid
+        data = discover.load_suggestions()
+        st1, _ = discover.add_suggestion(
+            data, "https://probe.example/feed.xml", found_via="测试",
+            group="科技媒体", name="Probe")
+        check(st1 == "added" and data["suggestions"][0]["item_count"] == 1,
+              "add_suggestion 验证通过后入队且记录条目数")
+        st2, _ = discover.add_suggestion(
+            data, "HTTPS://probe.example/feed.xml/", found_via="测试",
+            group="g", name="Dup")
+        check(st2 == "duplicate", "URL 归一化后重复入队被判 duplicate")
+        st3, _ = discover.add_suggestion(
+            data, "https://old.example/rss", found_via="测试", group="g")
+        check(st3 == "exists", "已在信源表的 URL 判 exists")
+        st4, _ = discover.add_suggestion(
+            data, "https://dead.example/feed", found_via="测试", group="g")
+        check(st4 == "invalid", "无法验证的 feed 判 invalid 且不入队")
+        discover.save_suggestions(data)
+
+        # 通道 1b：整轮网页发现（并发抓种子站 + 并发验证）
+        seeds = [{"name": "BlogB", "url": "https://blog.example/", "group": "科技媒体"},
+                 {"name": "PathSite", "url": "https://path.example/", "group": "学术研究"},
+                 {"name": "DeadSite", "url": "https://dead.example/", "group": "其他"}]
+        (td / "seeds.json").write_text(
+            json.dumps({"seeds": seeds}, ensure_ascii=False), encoding="utf-8")
+        wstats = discover.run_web_discovery(str(td / "seeds.json"), log=lambda *_: None)
+        check(wstats["seeds"] == 3 and wstats["errors"] == 1, "整轮发现统计：不可达站点计 errors")
+        q = discover.load_suggestions()
+        urls = {s["url"] for s in q["suggestions"]}
+        check("https://blog.example/feed.xml" in urls,
+              "整轮发现：link 标签通道命中")
+        check("https://path.example/feed.xml" in urls,
+              "整轮发现：无 link 声明时常见路径探测命中")
+        check(not any("comments" in u for u in urls), "整轮发现：评论 feed 未入队")
+
+        # 通道 2：OPML 解析去重（大小写/尾斜杠归一）+ 无 xmlUrl 跳过
+        entries = discover.parse_opml(opml)
+        check(len(entries) == 1 and entries[0]["name"] == "Probe",
+              f"OPML 只提有效 xmlUrl 且归一去重: {len(entries)} 条")
+        (td / "catalog.opml").write_text(opml, encoding="utf-8")
+        stats = discover.run_opml_import(str(td / "catalog.opml"), log=lambda *_: None)
+        check(stats["entries"] == 1 and stats["duplicate"] == 1 and stats["added"] == 0,
+              "OPML 导入统计：已在待审队列的记 duplicate")
+        # 另一份含新源的 OPML：验证 added 路径与重复条目同文件归一
+        (td / "catalog2.opml").write_text(opml2, encoding="utf-8")
+        stats2 = discover.run_opml_import(str(td / "catalog2.opml"), log=lambda *_: None)
+        check(stats2["entries"] == 1 and stats2["added"] == 1,
+              "OPML 新源验证通过后 added")
+
+        # 采纳：写回 feeds.json 且条目状态变 accepted；忽略不写信源表
+        discover.save_suggestions(data)
+        sid = data["suggestions"][0]["id"]
+        changed = discover.set_status([sid], "accepted")
+        check(len(changed) == 1 and changed[0]["status"] == "accepted", "采纳更新队列状态")
+        conf = feeds.load_conf()
+        check(any(s["id"] == sid and s["enabled"] for s in conf["sources"]),
+              "采纳的信源写回 feeds.json 并默认启用")
+        # 再采一个待忽略项
+        d_live = discover.load_suggestions()
+        st5, _ = discover.add_suggestion(
+            d_live, "https://probe.example/other.xml",
+            found_via="测试", group="g", name="Other")
+        # other.xml 也能通过桩验证（含 probe.example 域名）
+        check(st5 == "added", f"第二个新源入队（实际 {st5}）")
+        discover.save_suggestions(d_live)
+        n_before = len(feeds.load_conf()["sources"])
+        d2 = discover.load_suggestions()
+        other_id = next(s["id"] for s in d2["suggestions"]
+                        if s["url"] == "https://probe.example/other.xml")
+        discover.set_status([other_id], "ignored")
+        check(len(feeds.load_conf()["sources"]) == n_before,
+              "忽略不写回信源表")
+
+        # 健康检查：连续 3 次失败自动停用，成功一次重置；手动停用不被自动逻辑改写
+        feeds.record_health(set(), {"old": "timeout"}, log=lambda *_: None)
+        feeds.record_health(set(), {"old": "timeout"}, log=lambda *_: None)
+        h2 = feeds.record_health(set(), {"old": "timeout"}, log=lambda *_: None)
+        check(h2["old"]["consecutive_failures"] == 3 and h2["old"].get("auto_disabled"),
+              "连续失败达阈值写 auto_disabled 标记")
+        old_row = next(s for s in feeds.load_conf()["sources"] if s["id"] == "old")
+        check(old_row["enabled"] is False and "健康检查自动停用" in old_row.get("disabled_reason", ""),
+              "健康检查自动停用信源并写明原因")
+        # manual_disabled 源即使失败 3 次也不被自动逻辑触碰
+        feeds.record_health(set(), {"manual-off": "x"}, log=lambda *_: None)
+        feeds.record_health(set(), {"manual-off": "x"}, log=lambda *_: None)
+        feeds.record_health(set(), {"manual-off": "x"}, log=lambda *_: None)
+        m_row = next(s for s in feeds.load_conf()["sources"] if s["id"] == "manual-off")
+        check(m_row.get("manual_disabled") is True and "健康检查" not in m_row.get("disabled_reason", ""),
+              "手动停用源受保护，健康检查不覆盖其停用原因")
+        # 成功重置
+        h3 = feeds.record_health({"old"}, set(), log=lambda *_: None)
+        check(h3["old"]["consecutive_failures"] == 0 and "last_error" not in h3["old"],
+              "成功采集一次即重置失败计数")
+
     print("\n全部自测通过 ✅")
 
 

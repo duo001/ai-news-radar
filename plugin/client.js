@@ -29,6 +29,19 @@ window.__ModuleLoader__.load({
 .ain-tab.active { color:var(--dsw-alias-brand-primary); border-bottom-color:var(--dsw-alias-brand-primary); font-weight:600; }
 .ain-meta { color:var(--dsw-alias-label-secondary); font-size:12px; margin-bottom:10px; }
 .ain-group { margin-bottom:18px; }
+.ain-progress { margin:10px 0 6px; padding:8px 12px; background:var(--dsw-alias-bg-layer-1);
+  border:1px solid var(--dsw-alias-border-l1); border-radius:6px; }
+.ain-progress .row { display:flex; align-items:center; gap:10px; margin-bottom:6px; font-size:12px; }
+.ain-progress .track { height:4px; background:var(--dsw-alias-border-l1); border-radius:2px; overflow:hidden; }
+.ain-progress .fill { height:100%; background:var(--dsw-alias-brand-primary); transition:width .3s ease; }
+.ain-progress .current { color:var(--dsw-alias-label-secondary); font-size:11px; }
+.ain-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.ain-tag { padding:3px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:12px;
+  font-size:11px; background:var(--dsw-alias-bg-layer-1); cursor:pointer;
+  color:var(--dsw-alias-label-secondary); }
+.ain-tag:hover { border-color:var(--dsw-alias-brand-primary); color:var(--dsw-alias-brand-primary); }
+.ain-tag.active { background:var(--dsw-alias-brand-primary); color:#fff; border-color:var(--dsw-alias-brand-primary); }
+.ain-tag .count { margin-left:4px; opacity:.7; }
 .ain-group h3 { font-size:13px; margin:0 0 8px; color:var(--dsw-alias-label-secondary); font-weight:600; }
 .ain-item { display:block; padding:10px 12px; border:1px solid var(--dsw-alias-border-l1);
   border-radius:8px; margin-bottom:8px; text-decoration:none; color:inherit;
@@ -84,6 +97,8 @@ window.__ModuleLoader__.load({
       const [loading, setLoading] = useState(true);
       const [refreshing, setRefreshing] = useState(false);
       const [error, setError] = useState('');
+      const [progress, setProgress] = useState(null);
+      const [activeTag, setActiveTag] = useState('全部');
 
       const load = useCallback(async (refresh) => {
         if (refresh) setRefreshing(true); else setLoading(true);
@@ -99,6 +114,26 @@ window.__ModuleLoader__.load({
         }
       }, []);
 
+      // 采集期间每秒轮询进度；完成后关定时器并 reload
+      useEffect(() => {
+        if (!refreshing) return;
+        let stopped = false;
+        const tick = async () => {
+          try {
+            const p = await api('/news/progress');
+            if (stopped) return;
+            setProgress(p.stage === 'idle' ? null : p);
+            if (p.stage === 'done') {
+              setProgress(null);
+              load(false);
+            }
+          } catch (_) { /* 单次轮询失败忽略 */ }
+        };
+        const timer = setInterval(tick, 1000);
+        tick();
+        return () => { stopped = true; clearInterval(timer); };
+      }, [refreshing, load]);
+
       useEffect(() => { load(false); }, [load]);
 
       if (loading) return h('div', { className: 'ain-empty' }, '正在读取资讯缓存…');
@@ -108,9 +143,23 @@ window.__ModuleLoader__.load({
 
       const news = (data && data.news) || [];
       const trans = (data && data.news_translations) || {};
-      const groups = {};
-      for (const it of news) (groups[it.group] = groups[it.group] || []).push(it);
       const failures = (data && data.news_failures) || [];
+
+      // 按激活标签过滤
+      const filtered = activeTag === '全部'
+        ? news
+        : news.filter((it) => it.group === activeTag);
+      const groups = {};
+      for (const it of filtered) (groups[it.group] = groups[it.group] || []).push(it);
+      // 标签计数（基于全量 news 计算，避免过滤后计数变化）
+      const tagCounts = {};
+      for (const it of news) tagCounts[it.group] = (tagCounts[it.group] || 0) + 1;
+      const tagList = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+
+      // 采集进度百分比
+      const pct = progress && progress.total
+        ? Math.round((progress.done / progress.total) * 100)
+        : 0;
 
       return h('div', { className: 'ain-wrap' },
         h('div', { className: 'ain-head' },
@@ -122,6 +171,25 @@ window.__ModuleLoader__.load({
           }, refreshing ? '采集中…' : '在线刷新')),
         data && data.generated_at && h('div', { className: 'ain-meta' },
           `更新于 ${new Date(data.generated_at).toLocaleString()}`),
+        // 进度条（采集期间显示）
+        refreshing && h('div', { className: 'ain-progress' },
+          h('div', { className: 'row' },
+            h('span', null, progress ? `采集中 ${progress.done}/${progress.total}` : '正在启动…'),
+            h('span', { className: 'current' }, progress && progress.current
+              ? `当前：${progress.current}` : '')),
+          h('div', { className: 'track' },
+            h('div', { className: 'fill', style: { width: pct + '%' } }))),
+        // 标签过滤（有资讯且不止一个分组时显示）
+        !refreshing && news.length > 0 && tagList.length > 0 && h('div', { className: 'ain-tags' },
+          h('button', {
+            className: 'ain-tag' + (activeTag === '全部' ? ' active' : ''),
+            onClick: () => setActiveTag('全部'),
+          }, `全部 ${news.length}`),
+          tagList.map(([g, n]) => h('button', {
+            key: g,
+            className: 'ain-tag' + (activeTag === g ? ' active' : ''),
+            onClick: () => setActiveTag(g),
+          }, `${g} ${n}`))),
         failures.length > 0 && h('div', { className: 'ain-err' },
           `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
@@ -223,14 +291,144 @@ window.__ModuleLoader__.load({
             }, '删除')))));
     }
 
+    // ---------- 信源发现面板（自动发现 → 待审队列 → 一键采纳）----------
+    function DiscoverPanel() {
+      const [doc, setDoc] = useState(null);
+      const [catalog, setCatalog] = useState({ catalogs: [] });
+      const [error, setError] = useState('');
+      const [busy, setBusy] = useState('');
+      const [log, setLog] = useState('');
+      const [opmlUrl, setOpmlUrl] = useState('');
+      const [catalogAlias, setCatalogAlias] = useState('');
+
+      const reload = useCallback(async () => {
+        setError('');
+        try {
+          const [s, c] = await Promise.all([api('/suggestions'), api('/opml-catalog')]);
+          setDoc(s);
+          setCatalog(c);
+          if (!catalogAlias && c.catalogs && c.catalogs.length) setCatalogAlias(c.catalogs[0].alias);
+        } catch (err) { setError(err.message); }
+      }, [catalogAlias]);
+      useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+      const runDiscover = async (mode, target, key) => {
+        setBusy(key); setError(''); setLog('发现中，每个候选需实际验证 feed，可能要几十秒…');
+        try {
+          const d = await api('/discover', {
+            method: 'POST', body: JSON.stringify({ mode, target }),
+          });
+          setDoc(d);
+          setLog((d.log || '').split('\n').slice(-6).join('\n'));
+        } catch (err) {
+          setError(err.message); setLog('');
+        } finally { setBusy(''); }
+      };
+
+      const decide = async (op, ids) => {
+        setBusy(op + (ids && ids.length ? ':' + ids[0] : '')); setError('');
+        try {
+          const d = await api('/suggestions', {
+            method: 'POST', body: JSON.stringify({ op, ids: ids || [] }),
+          });
+          setDoc({ ...doc, suggestions: d.suggestions });
+          setLog(d.log || '');
+        } catch (err) { setError(err.message); } finally { setBusy(''); }
+      };
+
+      if (!doc) return h('div', { className: 'ain-empty' }, error ? `加载失败：${error}` : '加载中…');
+      const pending = (doc.suggestions || []).filter((s) => s.status === 'pending');
+      const decided = (doc.suggestions || []).filter((s) => s.status !== 'pending');
+
+      return h('div', { className: 'ain-wrap' },
+        h('div', { className: 'ain-head' },
+          h('h2', { className: 'ain-title' }, '信源发现'),
+          h('span', { className: 'ain-meta', style: { margin: 0 } },
+            `待审 ${pending.length} · 已处理 ${decided.length}`)),
+        error && h('div', { className: 'ain-err' }, error),
+
+        h('div', { className: 'ain-form' },
+          h('label', null, '① 网页自动发现（解析种子站点的 RSS 声明，30 个种子站）'),
+          h('button', {
+            className: 'ain-btn primary', disabled: !!busy,
+            onClick: () => runDiscover('web', '', 'web'),
+          }, busy === 'web' ? '发现中…' : '开始网页发现'),
+
+          h('label', { style: { marginTop: 10 } }, '② 精选 OPML 目录（已验证可下载的社区清单）'),
+          h('select', { value: catalogAlias, onChange: (e) => setCatalogAlias(e.target.value) },
+            (catalog.catalogs || []).map((c) =>
+              h('option', { key: c.alias, value: c.alias }, c.name))),
+          h('button', {
+            className: 'ain-btn', disabled: !!busy, style: { marginTop: 6 },
+            onClick: () => runDiscover('catalog', catalogAlias, 'catalog'),
+          }, busy === 'catalog' ? '导入中…' : '导入该目录'),
+
+          h('label', { style: { marginTop: 10 } }, '③ 自定义 OPML 地址'),
+          h('input', {
+            placeholder: 'https://…/xxx.opml', value: opmlUrl,
+            onChange: (e) => setOpmlUrl(e.target.value),
+          }),
+          h('button', {
+            className: 'ain-btn', disabled: !!busy || !opmlUrl,
+            onClick: () => runDiscover('opml', opmlUrl, 'opml'),
+          }, busy === 'opml' ? '导入中…' : '导入 OPML'),
+
+          h('label', { style: { marginTop: 10 } }, '④ 同步远程开源信源表（AIHOT）'),
+          h('button', {
+            className: 'ain-btn', disabled: !!busy,
+            onClick: () => runDiscover('remote', '', 'remote'),
+          }, busy === 'remote' ? '同步中…' : '远程清单同步')),
+
+        log && h('pre', {
+          className: 'ain-meta',
+          style: { whiteSpace: 'pre-wrap', background: 'var(--dsw-alias-bg-layer-1)',
+            padding: 8, borderRadius: 6, border: '1px solid var(--dsw-alias-border-l1)' },
+        }, log),
+
+        pending.length > 0 && h('div', { className: 'ain-head', style: { marginTop: 8 } },
+          h('strong', null, `待审队列（${pending.length}）`),
+          h('button', {
+            className: 'ain-btn primary', disabled: !!busy,
+            onClick: () => decide('accept-all'),
+          }, busy === 'accept-all' ? '采纳中…' : '全部采纳')),
+
+        pending.length === 0
+          ? h('div', { className: 'ain-empty' }, '待审队列为空。点上方任一发现通道，验证通过的信源会出现在这里。')
+          : pending.map((s) => h('div', { className: 'ain-src', key: s.id },
+              h('div', { className: 'row1' },
+                h('span', { className: 'nm' }, s.name || s.id),
+                h('span', { className: 'ain-badge' }, s.group || '其他'),
+                h('span', { className: 'ain-badge' }, s.kind || 'rss')),
+              h('div', { className: 'url' }, s.url),
+              h('div', { className: 'tags' },
+                `条目 ${s.item_count ?? '?'} · 最近更新 ${(s.latest_item_at || '--').slice(0, 10)} · 来源：${s.found_via || ''}`),
+              h('div', { style: { marginTop: 8 } },
+                h('button', {
+                  className: 'ain-btn primary', disabled: !!busy,
+                  onClick: () => decide('accept', [s.id]),
+                }, busy === 'accept:' + s.id ? '…' : '采纳'),
+                h('button', {
+                  className: 'ain-btn', disabled: !!busy,
+                  onClick: () => decide('ignore', [s.id]),
+                }, busy === 'ignore:' + s.id ? '…' : '忽略')))),
+
+        decided.length > 0 && h('details', { style: { marginTop: 16 } },
+          h('summary', { className: 'ain-meta', style: { cursor: 'pointer' } },
+            `已处理 ${decided.length} 个（采纳/忽略历史）`),
+          decided.slice(-20).map((s) => h('div', { className: 'ain-meta', key: s.id, style: { marginTop: 4 } },
+            `${s.status === 'accepted' ? '✓' : '✗'} ${s.name || s.id} — ${s.url}`))));
+    }
+
     // ---------- 主面板（含 tab 切换）----------
     function Panel() {
       const [tab, setTab] = useState('news');
       return h(React.Fragment, null,
         h('div', { className: 'ain-tabs' },
           h('button', { className: `ain-tab ${tab === 'news' ? 'active' : ''}`, onClick: () => setTab('news') }, '资讯'),
+          h('button', { className: `ain-tab ${tab === 'discover' ? 'active' : ''}`, onClick: () => setTab('discover') }, '发现'),
           h('button', { className: `ain-tab ${tab === 'sources' ? 'active' : ''}`, onClick: () => setTab('sources') }, '信源维护')),
-        tab === 'news' ? h(NewsPanel) : h(SourcePanel));
+        tab === 'news' ? h(NewsPanel)
+          : tab === 'discover' ? h(DiscoverPanel) : h(SourcePanel));
     }
 
     // 侧边栏图标（ownerProps 提供 size/active）

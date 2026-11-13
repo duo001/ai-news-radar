@@ -1,0 +1,45 @@
+{
+  "$comment": "外部 OPML 目录（已核实可下载、解析器兼容）。用法：python3 radar.py discover --opml-catalog tidings-ai。导入后全部进入待审队列，验证通过再 --accept，不会静默改写 feeds.json。分支名已核实（awesome-rss-feeds 默认分支是 master）。",
+  "catalogs": [
+    {
+      "alias": "tidings-ai",
+      "name": "Tidings · AI 专题（99 源）",
+      "url": "https://raw.githubusercontent.com/fuxiaoai/tidings-rss/main/opml/tidings-ai.opml",
+      "note": "CC0；含中英文 AI 厂商/媒体/个人博客，部分条目走 rsshub 公共实例"
+    },
+    {
+      "alias": "tidings-chinese",
+      "name": "Tidings · 中文源专题",
+      "url": "https://raw.githubusercontent.com/fuxiaoai/tidings-rss/main/opml/tidings-chinese.opml",
+      "note": "中文资讯/公众号/社区，国内平台多为 rsshub 路由，依赖公共实例可用性"
+    },
+    {
+      "alias": "tidings-tech-media",
+      "name": "Tidings · 科技媒体专题",
+      "url": "https://raw.githubusercontent.com/fuxiaoai/tidings-rss/main/opml/tidings-tech-media.opml"
+    },
+    {
+      "alias": "tidings-research",
+      "name": "Tidings · 研究学术专题",
+      "url": "https://raw.githubusercontent.com/fuxiaoai/tidings-rss/main/opml/tidings-research.opml"
+    },
+    {
+      "alias": "tidings-top200",
+      "name": "Tidings · Top200 综合榜",
+      "url": "https://raw.githubusercontent.com/fuxiaoai/tidings-rss/main/opml/tidings-top200.opml",
+      "note": "跨领域综合榜，非 AI 专属，导入后需人工筛选"
+    },
+    {
+      "alias": "rsshub-routes",
+      "name": "Awesome RSSHub Routes（105 条混合源）",
+      "url": "https://raw.githubusercontent.com/JackyST0/awesome-rsshub-routes/main/feeds.opml",
+      "note": "934★；原生 RSS + RSSHub 路由混合，补齐微博/知乎/B站/掘金等无原生 RSS 的平台"
+    },
+    {
+      "alias": "awesome-tech",
+      "name": "Awesome RSS Feeds · Tech 分类（28 源）",
+      "url": "https://raw.githubusercontent.com/plenaryapp/awesome-rss-feeds/master/recommended/with_category/Tech.opml",
+      "note": "2889★；注意该仓默认分支是 master；另有 Science/Programming 等分类可按同路径换名"
+    }
+  ]
+}

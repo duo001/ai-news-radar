@@ -1,7 +1,7 @@
 ---
 name: ai-git-radar
-version: 0.7.0
-description: AI 资讯雷达。主力能力是并发聚合 14 个零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走本地翻译流水线，按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板与信源可视化维护，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
+version: 0.8.0
+description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走本地翻译流水线，按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
 # AI 资讯雷达（ai-git-radar）
@@ -33,6 +33,17 @@ python3 radar.py news --workers 4            # 并发数（默认 8，1 为串�
 python3 radar.py news --only 学术研究         # 按 feeds.json 里的 id 或 group 过滤
 python3 radar.py news --offline              # 只用 data/cache/feeds 缓存，不发网络请求
 python3 radar.py news --out data/news.md     # 额外再写一份指定路径的资讯 Markdown
+
+# ===== 信源自动发现（v0.8，全部进待审队列，采纳才写 feeds.json）=====
+python3 radar.py discover                    # 通道1：扫 30 个种子站的 RSS 声明（link 标签 + 常见路径）
+python3 radar.py discover --list             # 只看待审队列，不发网络请求
+python3 radar.py discover --opml-catalog tidings-ai            # 通道2：内置社区目录（见下表）
+python3 radar.py discover --opml-catalog tidings-ai,rsshub-routes  # 可逗号组合多个目录
+python3 radar.py discover --opml https://…/xxx.opml            # 通道2b：任意 OPML（URL 或本地文件）
+python3 radar.py discover --remote           # 通道3：同步远程开源清单（默认 AIHOT），也可传 URL
+python3 radar.py discover --accept id1,id2   # 采纳指定条目，写回 feeds.json 并默认启用
+python3 radar.py discover --accept-all       # 采纳全部待审
+python3 radar.py discover --ignore id1       # 忽略，只改状态不写信源表
 
 # 资讯中文翻译流水线（标题 + 摘要，按文章链接建库）
 python3 radar.py translate --news --coverage # 看资讯标题翻译覆盖率（已译/待译/原文即中文）
@@ -103,13 +114,31 @@ python3 radar.py render                      # 用最新 GitHub run 数据+翻�
 - **摘要清洗**：先整块移除 `<style>/<script>` 与 HTML/CSS 注释，再去标签（实测 GitHub Blog 的字体版权、MS Research 的 `.yt-consent` 样式会在去标签后变成文本噪声，见 references 第 20 条）；正文中合法的 `{...}` 代码片段不误伤
 - **资讯翻译流水线**（独立于仓库翻译，按文章 `link` 建 key，存 `data/news_translations.json`）：`translate --news --todo` 只抽英文标题（原文即中文自动跳过）→ Agent 填 `zh_title`/`zh_summary` → `--news --apply` 合并（已存在永不覆盖）并重渲染；报告显示中文标题+缩进原标题+中文摘要，报告头显示覆盖率。示例 `sample-news.*` 为 42 条 100% 中文化批次
 
+### 信源自动发现（v0.8，`scripts/discover.py`）
+
+手维护信源表累人，四条通道把候选源喂进**待审队列**，验证通过后一键采纳（**不静默自动加**，避免脏源污染报告）：
+
+| 通道 | 命令 | 机制 |
+|---|---|---|
+| 网页发现 | `discover` | 逐个抓 30 个种子站（`data/sources/discover-seeds.json`，只存首页），先解析 `<link rel=alternate type=application/rss+xml>`，没有则探测 `/feed`、`/rss.xml`、`/atom.xml` 等常见路径 |
+| 社区目录 | `--opml-catalog <别名>` | 内置 7 个已核实目录（`data/sources/opml-catalog.json`）：`tidings-ai`(99源)、`tidings-chinese`、`tidings-tech-media`、`tidings-research`、`tidings-top200`、`rsshub-routes`(105条)、`awesome-tech`(28源) |
+| 任意 OPML | `--opml <URL或文件>` | 正则提 `xmlUrl` + `title`，大小写/尾斜杠归一化去重 |
+| 远程清单 | `--remote [URL]` | 拉 AIHOT 格式的 `sources[]`，只取 `kind=rss/atom` 的零密钥源 |
+
+- **每个候选都真验证**：实际下载并 `feeds.parse_feed`，记 `item_count` / `latest_item_at` / feed 标题；下载即失败的判 `invalid` 不入队。所以一次网页发现要几十秒到几分钟（每站至少一次网络往返）
+- **四态去重**：`added` 新入队 / `duplicate` 已在队列 / `exists` 已在信源表 / `invalid` 验证失败；URL 归一化（小写 host、去尾斜杠、去 fragment）避免同一个 feed 换写法混进来
+- **评论 feed 自动剔除**：`/comments/feed/`、`/replies`、`comment-page` 这类 WordPress 噪音不进队列（实测 The Decoder 首页会暴露一个）
+- 队列文件 `data/source-suggestions.json`：`{generated_at, suggestions:[{id,name,url,kind,group,tags,found_via,status,item_count,latest_item_at,…}]}`，`status` 为 `pending|accepted|ignored`，采纳/忽略都留 `decided_at` 便于回溯
+- **健康检查自动停用**（`feeds.record_health`，只在**在线**采集时统计，离线失败不判失效）：连续 3 次失败把 `feeds.json` 里该源 `enabled=false` 并写 `disabled_reason`（含最近错误），成功一次即清零计数；带 `manual_disabled` 的手动停用源受保护，不会被自动逻辑改写
+
 ### 工作台形态：@local/ai-news-panel 插件
 
-同仓兄弟目录 `../ai-news-panel` 是 DSH 工作台插件，把本引擎包成侧边栏常驻面板（资讯浏览 + 信源可视化增删启停 + 一键在线刷新），引擎代码零改动：
+同仓兄弟目录 `../ai-news-panel` 是 DSH 工作台插件，把本引擎包成侧边栏常驻面板（**资讯浏览 / 发现 / 信源维护** 三个页签，含一键在线刷新），引擎代码零改动：
 - Host 半 `webServer` 注册 `/ai-news/*` 路由，用 subprocess 调 `python3 radar.py news --quiet --json-out data/plugin-news.json`；信源维护直接 fs 读写本仓 `data/sources/feeds.json`，与命令行共享同一份
+- v0.8 新增路由：`GET /suggestions`（待审队列）、`GET /opml-catalog`（可选目录）、`POST /discover`（`mode=web|opml|catalog|remote` + `target`，内部拼 `radar.py discover` 参数）、`POST /suggestions`（`op=accept|ignore|accept-all` + `ids[]`）
 - `--quiet` 是 news 子命令专为插件加的开关：不打印摘要/逐源日志、不写时间戳三件套，只出 `--json-out` 的固定 JSON
 - Client 半用全局 `fetch` 同源调路由（持久化 ESM bundle 可用 fetch；动态沙箱插件的 `host.call` 此路不通，详见 references 第 22 条）
-- 引擎位置探测：环境变量 `AI_GIT_RADAR_DIR` → 硬编码工作区路径 → cwd 兄弟目录兜底；插件 entryId 为 `include:ai-news-panel`
+- 引擎位置探测：环境变量 `AI_GIT_RADAR_DIR` → 同仓 `../engine` → 历史布局 `../ai-git-radar` → cwd 兄弟目录兜底；插件 entryId 为 `include:ai-news-panel`
 
 ## 怎么扩展（核心设计）
 

@@ -21,10 +21,13 @@ from xml.etree import ElementTree as ET
 ROOT = Path(__file__).resolve().parent.parent
 FEEDS_CONF = ROOT / "data" / "sources" / "feeds.json"
 CACHE_DIR = ROOT / "data" / "cache" / "feeds"
+HEALTH_FILE = ROOT / "data" / "source-health.json"
+AUTO_DISABLE_FAILS = 3              # 连续失败次数达到该值自动停用信源
 
 UA = "Mozilla/5.0 (compatible; ai-git-radar/0.5; +https://github.com/)"
 TIMEOUT = 20
 CACHE_TTL_SECONDS = 3 * 3600          # 资讯缓存 3 小时
+PROGRESS_FILE = ROOT / "data" / "news-progress.json"  # 采集进度（插件轮询用）
 
 # Atom 命名空间
 NS = {"atom": "http://www.w3.org/2005/Atom"}
@@ -56,6 +59,77 @@ def load_feeds(only=None, include_disabled=False):
         sources = [s for s in sources
                    if s["id"] in wanted or s.get("group") in wanted]
     return sources
+
+
+def load_conf():
+    """读取完整信源配置（含停用源），供写回/采纳新源使用。"""
+    return json.loads(FEEDS_CONF.read_text(encoding="utf-8"))
+
+
+def save_conf(conf):
+    """写回信源表（2 空格缩进 + 尾换行），与插件面板的写入口径一致。"""
+    FEEDS_CONF.parent.mkdir(parents=True, exist_ok=True)
+    FEEDS_CONF.write_text(
+        json.dumps(conf, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+# --------------------------------------------------------------- 健康检查（自动停用）
+
+def load_health():
+    """读健康记录 {id: {consecutive_failures, last_error, last_ok, last_fail}}。"""
+    if not HEALTH_FILE.exists():
+        return {}
+    try:
+        return json.loads(HEALTH_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_health(health):
+    HEALTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+    HEALTH_FILE.write_text(
+        json.dumps(health, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def record_health(ok_map, failure_map, log=None):
+    """按一轮采集结果更新健康记录；连续失败达 AUTO_DISABLE_FAILS 自动停用。
+
+    ok_map: 成功 id 集合；failure_map: {id: error 文本}。离线模式调用方不应调用。
+    自动停用会改写 feeds.json 并写 disabled_reason，成功一次即重置计数。
+    """
+    health = load_health()
+    if not hasattr(failure_map, "items"):      # 容忍空集/迭代器等非 mapping 入参
+        failure_map = {sid: "" for sid in (failure_map or ())}
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for sid in ok_map:
+        rec = health.setdefault(sid, {})
+        if rec.get("consecutive_failures"):
+            rec["consecutive_failures"] = 0
+            rec.pop("last_error", None)
+        rec["last_ok"] = now
+    changed = False
+    for sid, err in failure_map.items():
+        rec = health.setdefault(sid, {})
+        rec["consecutive_failures"] = int(rec.get("consecutive_failures", 0)) + 1
+        rec["last_error"] = str(err)[:200]
+        rec["last_fail"] = now
+        if rec["consecutive_failures"] >= AUTO_DISABLE_FAILS:
+            conf = load_conf()
+            for src in conf["sources"]:
+                if (src["id"] == sid and src.get("enabled", True)
+                        and not src.get("manual_disabled")):
+                    src["enabled"] = False
+                    src["disabled_reason"] = (
+                        f"健康检查自动停用：连续 {rec['consecutive_failures']} 次失败"
+                        f"（最近错误：{str(err)[:80]}）")
+                    rec["auto_disabled"] = True
+                    changed = True
+                    if log:
+                        log(f"  ⏸ 自动停用 {sid}（连续 {rec['consecutive_failures']} 次失败）")
+    if changed:
+        save_conf(conf)
+    save_health(health)
+    return health
 
 
 # --------------------------------------------------------------- 工具
@@ -98,7 +172,10 @@ def _parse_date(value):
         pass
     # RSS RFC822：Thu, 12 Nov 2026 00:00:00 GMT
     try:
-        return parsedate_to_datetime(value)
+        dt = parsedate_to_datetime(value)
+        if dt is None:
+            return None
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except (TypeError, ValueError):
         return None
 
@@ -219,6 +296,39 @@ def fetch_one(source, offline=False):
     return parse_feed(xml_text, source)
 
 
+# ------------------------------------------------------------- 进度追踪
+
+def _write_progress(stage, done, total, current_name, started_ms):
+    """写进度文件，供插件 GET /news/progress 轮询；失败静默忽略。"""
+    try:
+        PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        PROGRESS_FILE.write_text(json.dumps({
+            "stage": stage,           # idle | fetching | done
+            "done": done,
+            "total": total,
+            "current": current_name,
+            "started_at": started_ms,
+        }, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def clear_progress():
+    """采集结束后删除进度文件（next 轮询返回 idle）。"""
+    try:
+        PROGRESS_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
+def _safe_dt_sort_key(x):
+    """排序 key：None → epoch；naive → 补 UTC；aware 直接用。"""
+    dt = x.get("published")
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
 def fetch_all(only=None, offline=False, per_source_limit=8, log=print, workers=8):
     """并发采集全部启用信源。
 
@@ -240,28 +350,56 @@ def fetch_all(only=None, offline=False, per_source_limit=8, log=print, workers=8
         except FeedError as e:
             return i, src, None, str(e)
 
+    import time
+    import threading
+    started_ms = int(time.time() * 1000)
+    _write_progress("init", 0, len(sources), "", started_ms)
+
+    done_counter = [0]
+    _lock = threading.Lock()
+
+    def _job_tracked(i, src):
+        try:
+            items = fetch_one(src, offline=offline)
+            result = (i, src, items, None)
+        except FeedError as e:
+            result = (i, src, None, str(e))
+        with _lock:
+            done_counter[0] += 1
+            _write_progress("fetching", done_counter[0], len(sources),
+                            src["name"], started_ms)
+        return result
+
     if workers == 1:
         for i, src in enumerate(sources):
-            results[i] = _job(i, src)
+            results[i] = _job_tracked(i, src)
     else:
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            for i, src, items, err in ex.map(lambda p: _job(*p),
-                                             list(enumerate(sources))):
+            futures = {ex.submit(_job_tracked, i, src): i
+                       for i, src in enumerate(sources)}
+            for future in as_completed(futures):
+                i, src, items, err = future.result()
                 results[i] = (i, src, items, err)
 
+    _write_progress("done", len(sources), len(sources), "", started_ms)
     entries, failures = [], []
+    ok_ids, fail_map = set(), {}
     for i, src, items, err in results:
         if err is not None:
             failures.append({"id": src["id"], "name": src["name"], "error": err})
+            fail_map[src["id"]] = err
             if log:
                 log(f"  ✗ {src['name']}: {err}")
             continue
-        items.sort(key=lambda x: x["published"] or datetime.min.replace(tzinfo=timezone.utc),
-                   reverse=True)
+        ok_ids.add(src["id"])
+        items.sort(key=_safe_dt_sort_key, reverse=True)
         entries.extend(items[:per_source_limit])
         if log:
             log(f"  ✓ {src['name']}: {len(items)} 条（取前 {min(len(items), per_source_limit)}）")
-    entries.sort(key=lambda x: x["published"] or datetime.min.replace(tzinfo=timezone.utc),
-                 reverse=True)
+    # 在线模式才记录健康并可能自动停用；离线失败只是无缓存，不代表源失效
+    if not offline and (ok_ids or fail_map):
+        record_health(ok_ids, fail_map, log=log)
+    entries.sort(key=_safe_dt_sort_key, reverse=True)
+    clear_progress()
     return entries, failures

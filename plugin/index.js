@@ -30,6 +30,9 @@ const ENGINE_DIR = CANDIDATE_DIRS.find((p) => existsSync(path.join(p, 'scripts',
   || CANDIDATE_DIRS[0];
 const RADAR_PY = path.join(ENGINE_DIR, 'scripts', 'radar.py');
 const FEEDS_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'feeds.json');
+const OPML_CATALOG_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'opml-catalog.json');
+const SUGGESTIONS_JSON = path.join(ENGINE_DIR, 'data', 'source-suggestions.json');
+const NEWS_PROGRESS_JSON = path.join(ENGINE_DIR, 'data', 'news-progress.json');
 const PLUGIN_NEWS_JSON = path.join(ENGINE_DIR, 'data', 'plugin-news.json');
 const PYTHON = process.env.AI_GIT_RADAR_PYTHON || 'python3';
 
@@ -93,6 +96,44 @@ function runRadarNews({ offline = true, perSource = 8, only = '' } = {}) {
   });
 }
 
+// 通用 radar.py 子进程（discover 等命令复用），返回 stdout/stderr 文本。
+function runRadar(argv, { graceMs = 300_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let handle;
+    try {
+      handle = subprocess.spawn({
+        argv: [PYTHON, RADAR_PY, ...argv],
+        cwd: ENGINE_DIR,
+        stdio: {
+          stdin: 'ignore',
+          stdout: { maxBytes: 256 * 1024 },
+          stderr: { maxBytes: 64 * 1024 },
+        },
+        graceMs,
+      });
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    handle.done.then(({ exitCode }) => {
+      const stdout = handle.collected.stdout?.readFrom(0).text || '';
+      const stderr = handle.collected.stderr?.readFrom(0).text || '';
+      if (exitCode === 0) resolve({ stdout, stderr });
+      else reject(new Error(`radar.py ${argv.join(' ')} 退出码 ${exitCode}: ${stderr.slice(-500) || stdout.slice(-500)}`));
+    }).catch(reject);
+  });
+}
+
+async function readSuggestions() {
+  if (!existsSync(SUGGESTIONS_JSON)) return { generated_at: null, suggestions: [] };
+  return JSON.parse(await readFile(SUGGESTIONS_JSON, 'utf-8'));
+}
+
+async function readOpmlCatalog() {
+  if (!existsSync(OPML_CATALOG_JSON)) return { catalogs: [] };
+  return JSON.parse(await readFile(OPML_CATALOG_JSON, 'utf-8'));
+}
+
 // 闭包内引用 subprocess 服务（apply 时绑定）。
 let subprocess;
 
@@ -115,6 +156,21 @@ export async function apply(ctx) {
           python: PYTHON,
           feedsJson: FEEDS_JSON,
         });
+        return;
+      }
+
+      // ---- 资讯采集进度（前端轮询用）----
+      if (req.method === 'GET' && route === '/news/progress') {
+        try {
+          if (!existsSync(NEWS_PROGRESS_JSON)) {
+            sendJson(res, 200, { ok: true, stage: 'idle' });
+            return;
+          }
+          const doc = JSON.parse(await readFile(NEWS_PROGRESS_JSON, 'utf-8'));
+          sendJson(res, 200, { ok: true, ...doc });
+        } catch (e) {
+          sendJson(res, 200, { ok: true, stage: 'idle', read_error: String(e.message || e) });
+        }
         return;
       }
 
@@ -210,6 +266,85 @@ export async function apply(ctx) {
         await mkdir(path.dirname(FEEDS_JSON), { recursive: true });
         await writeFeeds(doc);
         sendJson(res, 200, { ok: true, count: doc.sources.length, sources: doc.sources });
+        return;
+      }
+
+      // ---- 待审信源队列 ----
+      if (req.method === 'GET' && route === '/suggestions') {
+        const doc = await readSuggestions();
+        sendJson(res, 200, { ok: true, ...doc });
+        return;
+      }
+
+      // ---- 可选 OPML 目录（面板「发现」页的快捷导入按钮）----
+      if (req.method === 'GET' && route === '/opml-catalog') {
+        const doc = await readOpmlCatalog();
+        sendJson(res, 200, { ok: true, ...doc });
+        return;
+      }
+
+      // ---- 触发自动发现（网页 / OPML / 目录 / 远程清单）----
+      if (req.method === 'POST' && route === '/discover') {
+        if (!enginePresent) {
+          sendJson(res, 503, { ok: false, error: `引擎目录不存在: ${ENGINE_DIR}` });
+          return;
+        }
+        const body = await readJsonBody(req);
+        const argv = ['discover'];
+        if (body.mode === 'opml') {
+          if (!body.target) {
+            sendJson(res, 400, { ok: false, error: 'opml 模式需要 target（URL 或文件路径）' });
+            return;
+          }
+          argv.push('--opml', String(body.target));
+        } else if (body.mode === 'catalog') {
+          if (!body.target) {
+            sendJson(res, 400, { ok: false, error: 'catalog 模式需要 target（目录别名，逗号分隔）' });
+            return;
+          }
+          argv.push('--opml-catalog', String(body.target));
+        } else if (body.mode === 'remote') {
+          argv.push('--remote');
+          if (body.target) argv.push(String(body.target));
+        } else {
+          // 默认网页发现（body.mode === 'web' 或缺省）
+        }
+        const { stdout, stderr } = await runRadar(argv);
+        const doc = await readSuggestions();
+        sendJson(res, 200, { ok: true, log: `${stdout}\n${stderr}`.trim(), ...doc });
+        return;
+      }
+
+      // ---- 待审队列决策：采纳（写回 feeds.json）/ 忽略 / 全部采纳 ----
+      if (req.method === 'POST' && route === '/suggestions') {
+        const body = await readJsonBody(req);
+        const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+        let argv;
+        if (body.op === 'accept-all') {
+          const cur = await readSuggestions();
+          if (!(cur.suggestions || []).some((s) => s.status === 'pending')) {
+            const feeds = await readFeeds();
+            sendJson(res, 200, {
+              ok: true, log: '待审队列为空，无需处理',
+              suggestions: cur.suggestions, sources: feeds.sources,
+            });
+            return;
+          }
+          argv = ['discover', '--accept-all'];
+        } else if (body.op === 'accept' && ids.length) {
+          argv = ['discover', '--accept', ids.join(',')];
+        } else if (body.op === 'ignore' && ids.length) {
+          argv = ['discover', '--ignore', ids.join(',')];
+        } else {
+          sendJson(res, 400, { ok: false, error: '需要 op=accept/ignore/accept-all 及对应 ids' });
+          return;
+        }
+        const { stdout, stderr } = await runRadar(argv);
+        const [suggestions, feeds] = await Promise.all([readSuggestions(), readFeeds()]);
+        sendJson(res, 200, {
+          ok: true, log: `${stdout}\n${stderr}`.trim(),
+          suggestions: suggestions.suggestions, sources: feeds.sources,
+        });
         return;
       }
 

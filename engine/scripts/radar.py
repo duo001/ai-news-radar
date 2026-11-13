@@ -8,6 +8,7 @@
       --workers N       并发数（默认 8，1 为串行）
       --offline         只用 data/cache/feeds 缓存
   translate --news      资讯翻译流水线：--todo 导出 / --apply 合并 / --coverage 覆盖率
+  discover              信源自动发现（网页/OPML/远程清单）→ 待审队列 → --accept 采纳
   doctor                网络通路、信源/缓存、类目自检
   categories            列出已注册 GitHub 类目
 
@@ -35,6 +36,7 @@ import report
 import html_report
 import i18n
 import feeds
+import discover
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -417,11 +419,14 @@ def cmd_news(args):
 
     不碰 GitHub（GitHub 项目拉取已封存到 run 命令）。
     """
-    entries, failures = feeds.fetch_all(
-        only=args.only, offline=args.offline,
-        per_source_limit=args.per_source,
-        log=(lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log,
-        workers=getattr(args, "workers", 8))
+    try:
+        entries, failures = feeds.fetch_all(
+            only=args.only, offline=args.offline,
+            per_source_limit=args.per_source,
+            log=(lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log,
+            workers=getattr(args, "workers", 8))
+    finally:
+        feeds.clear_progress()
     if not entries:
         if getattr(args, "quiet", False):
             return 1
@@ -488,6 +493,76 @@ def cmd_news(args):
     return 0
 
 
+def cmd_discover(args):
+    """信源自动发现：网页 link/常见路径、OPML、远程清单 → 待审队列 → 采纳写回。"""
+    if args.list:
+        data = discover.load_suggestions()
+        pending = [s for s in data["suggestions"] if s["status"] == "pending"]
+        if not pending:
+            print("待审队列为空。先运行：python3 radar.py discover")
+            return 0
+        print(f"待审信源 {len(pending)} 个（队列文件 data/source-suggestions.json）：\n")
+        for s in pending:
+            latest = (s.get("latest_item_at") or "")[:10] or "--"
+            print(f"- {s['id']}  [{s.get('group', '其他')}]  {s['name'][:40]}")
+            print(f"    {s['url']}")
+            print(f"    条目 {s.get('item_count', '?')} · 最近更新 {latest} · 来源：{s.get('found_via', '')}")
+        print("\n采纳：python3 radar.py discover --accept id1,id2（或 --accept-all）")
+        print("忽略：python3 radar.py discover --ignore id1,id2")
+        return 0
+
+    if args.accept_all or args.accept or args.ignore:
+        ids = []
+        if args.accept_all:
+            ids = [s["id"] for s in discover.load_suggestions()["suggestions"]
+                   if s["status"] == "pending"]
+            status = "accepted"
+        elif args.accept:
+            ids, status = [x.strip() for x in args.accept.split(",") if x.strip()], "accepted"
+        else:
+            ids, status = [x.strip() for x in args.ignore.split(",") if x.strip()], "ignored"
+        changed = discover.set_status(ids, status)
+        if not changed:
+            print("没有匹配的待审条目（可能已处理或 id 写错）。")
+            return 1
+        for s in changed:
+            mark = "✓ 采纳并写入 feeds.json" if status == "accepted" else "✗ 已忽略"
+            print(f"{mark}: {s['id']} ({s['name'][:40]})")
+        return 0
+
+    # 发现模式（可组合；不带任何通道参数时默认网页发现）
+    any_channel = args.opml or args.remote
+    if not any_channel:
+        _log("网页自动发现：解析种子站点的 RSS/Atom 声明并验证……")
+        stats = discover.run_web_discovery(args.seeds, log=_log)
+        print(f"种子 {stats['seeds']} 站：新增 {stats['added']}，已在信源表 {stats['exists']}，"
+              f"队列重复 {stats['duplicate']}，验证失败 {stats['invalid']}，首页错误 {stats['errors']}")
+    opml_targets = []
+    if args.opml:
+        opml_targets.append(args.opml)
+    if args.opml_catalog:
+        catalog = discover.load_opml_catalog()
+        for alias in [x.strip() for x in args.opml_catalog.split(",") if x.strip()]:
+            if alias not in catalog:
+                print(f"✗ 目录中无别名 {alias}，可用：{', '.join(sorted(catalog))}")
+                return 1
+            _log(f"OPML 目录：{catalog[alias]['name']}")
+            opml_targets.append(catalog[alias]["url"])
+    for target in opml_targets:
+        _log(f"OPML 导入：{target}")
+        stats = discover.run_opml_import(target, log=_log)
+        print(f"OPML 条目 {stats['entries']}：新增 {stats['added']}，已在表 {stats['exists']}，"
+              f"重复 {stats['duplicate']}，失败 {stats['invalid']}")
+    if args.remote:
+        url = args.remote if isinstance(args.remote, str) and args.remote != "" else None
+        _log(f"远程清单同步：{url or discover.DEFAULT_REMOTE}")
+        stats = discover.run_remote_sync(url, log=_log)
+        print(f"远程源 {stats['remote_sources']}：新增 {stats['added']}，已在表 {stats['exists']}，"
+              f"重复 {stats['duplicate']}，失败 {stats['invalid']}")
+    _log("完成。查看待审队列：python3 radar.py discover --list")
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         prog="radar.py",
@@ -526,6 +601,20 @@ def build_parser():
     n.add_argument("--quiet", action="store_true",
                    help="静默模式：不打印分组摘要、不写时间戳三件套（工作台插件用，配合 --json-out）")
     n.set_defaults(func=cmd_news)
+    d = sub.add_parser(
+        "discover",
+        help="信源自动发现：网页/OPML/远程清单 → 待审队列，--accept 采纳后写入 feeds.json")
+    d.add_argument("--seeds", default="", help="自定义种子 JSON 路径（默认 data/sources/discover-seeds.json）")
+    d.add_argument("--opml", default="", help="从 OPML 文件或 URL 批量导入订阅")
+    d.add_argument("--opml-catalog", default="", dest="opml_catalog",
+                   help="按 data/sources/opml-catalog.json 中的别名导入，逗号分隔（如 tidings-ai,rsshub-routes）")
+    d.add_argument("--remote", nargs="?", const="", default=None,
+                   help="同步远程开源信源表（裸用默认 AIHOT，也可传 JSON URL）")
+    d.add_argument("--list", action="store_true", help="只列出待审队列")
+    d.add_argument("--accept", default="", help="采纳指定 id（逗号分隔），写回 feeds.json")
+    d.add_argument("--accept-all", action="store_true", help="采纳全部待审条目")
+    d.add_argument("--ignore", default="", help="忽略指定 id（逗号分隔），保留记录不启用")
+    d.set_defaults(func=cmd_discover)
     return p
 
 
