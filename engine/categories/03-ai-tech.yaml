@@ -1,0 +1,47 @@
+# 类目 3：最近的 AI 技术（趋势 / 新范式 / 新协议的工程落地）
+# 与类目 1 的区别：偏"新"——只看近 N 天创建或爆发的项目，代表技术方向而非成熟工具。
+id: ai-tech
+name: 最近 AI 技术
+enabled: true
+desc: 近期出现的 AI 新技术与工程范式：MCP/A2A 协议、computer use、多模态 agent、推理与评测框架等。
+# 限制项目年龄（天）；搜索时附加 created:> 条件，评分时"前沿度"维度也用它
+max_age_days: 120
+topics:
+  - mcp
+  - model-context-protocol
+  - ai-agent
+  - computer-use
+  - multimodal
+  - rag
+  - llm-evaluation
+  - inference-optimization
+name_keywords:
+  - mcp
+  - a2a
+  - computer-use
+  - agent
+  - multimodal
+  - evaluation
+core_keywords:
+  strong:
+    - ai
+    - llm
+    - agent
+    - mcp
+    - rag
+    - multimodal
+    - gpt
+    - chatgpt
+    - aigc
+    - inference
+    - 大模型
+    - 智能体
+  weak:
+    - model
+    - 智能
+    - 人工智能
+    - machine learning
+readme_signals: []
+exclude:
+  keywords: []
+card_fields: [what, why_new, use_cases, quickstart]

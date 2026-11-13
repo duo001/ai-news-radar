@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 开源雷达报告 · 2026-11-13 08:22</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --text: #1f2329; --muted: #6b7280;
+  --line: #e5e7eb; --accent: #0958d9; --chip: #f0f2f5; --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --card: #1d2026; --text: #e6e8eb; --muted: #9aa0a8;
+    --line: #2c313a; --accent: #69b1ff; --chip: #262b33; --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  line-height: 1.6; font-size: 15px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px 60px; }
+header.hero { padding: 36px 0 18px; }
+h1 { margin: 0 0 10px; font-size: 28px; letter-spacing: .5px; }
+.meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.meta b { color: var(--text); font-weight: 600; }
+.notice {
+  margin: 14px 0 0; padding: 10px 14px; border-radius: 8px;
+  background: var(--chip); color: var(--muted); font-size: 13px;
+}
+nav.tabs {
+  position: sticky; top: 0; z-index: 10; background: var(--bg);
+  padding: 10px 0; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+nav.tabs a {
+  text-decoration: none; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+  font-size: 13px; box-shadow: var(--shadow);
+}
+nav.tabs a:hover { border-color: var(--accent); color: var(--accent); }
+nav.tabs .n { color: var(--muted); font-size: 12px; margin-left: 4px; }
+section.cat { margin-top: 30px; }
+section.cat > h2 {
+  font-size: 19px; margin: 0 0 14px; padding-bottom: 8px;
+  border-bottom: 2px solid var(--accent); display: flex; align-items: baseline; gap: 10px;
+}
+section.cat > h2 .pill {
+  font-size: 12px; font-weight: 500; color: var(--accent);
+  background: var(--chip); border-radius: 999px; padding: 2px 10px;
+}
+.empty { color: var(--muted); font-style: italic; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 14px;
+}
+.card-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.grade {
+  flex: none; width: 42px; height: 42px; border-radius: 10px; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 700; line-height: 1.1;
+}
+.grade .g { font-size: 17px; }
+.grade .s { font-size: 11px; opacity: .92; }
+.repo-name { font-size: 17px; font-weight: 650; }
+.repo-name a { color: var(--text); text-decoration: none; }
+.repo-name a:hover { color: var(--accent); }
+.repo-meta { color: var(--muted); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; }
+.desc { margin: 12px 0 4px; }
+.desc .zh { font-weight: 500; }
+.desc .orig { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.chip {
+  font-size: 12px; color: var(--muted); background: var(--chip);
+  border-radius: 6px; padding: 2px 8px;
+}
+.chip.good { color: #389e0d; }
+.dims { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 18px; margin: 12px 0 6px; }
+.dim { font-size: 12px; color: var(--muted); }
+.dim .bar { height: 6px; border-radius: 3px; background: var(--chip); margin-top: 4px; overflow: hidden; }
+.dim .fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.dim b { color: var(--text); font-weight: 600; }
+.free {
+  margin-top: 12px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; background: var(--chip); font-size: 13.5px;
+}
+.free h4 { margin: 0 0 8px; font-size: 13.5px; }
+.free ul { margin: 6px 0 0; padding-left: 20px; }
+.free .warn { color: #d46b08; }
+.risk-high { color: #cf1322; font-weight: 600; }
+.risk-medium { color: #d46b08; }
+.risk-low { color: #ad8b00; }
+.secondary { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+section.news { margin-top: 34px; }
+.news-group { margin-bottom: 18px; }
+.news-group h3 { font-size: 15px; margin: 0 0 8px; color: var(--accent); }
+.news-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 8px;
+}
+.news-item a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 14px; }
+.news-item a:hover { color: var(--accent); }
+.news-item .nmeta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.news-item .nsum { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.news-fail { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+details.rejected { margin-top: 34px; }
+details.rejected summary { cursor: pointer; font-size: 15px; font-weight: 600; }
+details.rejected ul { font-size: 13px; color: var(--muted); }
+footer { margin-top: 40px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1>📡 AI 开源雷达报告</h1>
+    <div class="meta">
+      <span>生成时间 <b>2026-11-13 08:22</b></span>
+      <span>trending 口径 <b>daily</b></span>
+      <span>模式 <b>full</b></span>
+      <span>通路 <b>匿名（网页/raw 通路）</b></span>
+      <span>候选 <b>50</b> · 入选 <b>32</b> · 淘汰 <b>18</b></span>
+    </div>
+    <div class="notice">全局规则：AI 模型本体开发（权重仓 / 训练推理引擎 / 论文复现）已硬排除。
+      额度政策变动快，信息截至 2026-11-13，使用前以官方页面为准。</div>
+    <div class="notice">简介中文翻译：26 条英文简介已全部翻译，另有 6 条原文即中文。</div>
+  </header>
+  <nav class="tabs"><a href="#sec-ai-tools">热门 AI 工具<span class="n">15</span></a><a href="#sec-free-tokens">免费与优惠 token 项目<span class="n">1</span></a><a href="#sec-ai-tech">最近 AI 技术<span class="n">4</span></a><a href="#sec-agent-skills">Agent 生态 · Skills / DSH<span class="n">12</span></a><a href="#sec-news">📰 AI 资讯<span class="n">112</span></a></nav>
+  <section class="cat" id="sec-ai-tools"><h2>热门 AI 工具<span class="pill">15 个</span></h2>
+    <article class="card" id="KKKKhazix/AIHOT">
+      <div class="card-top">
+        <div class="grade" style="background:#389e0d"><span class="g">A</span><span class="s">66</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/KKKKhazix/AIHOT" target="_blank" rel="noopener">KKKKhazix/AIHOT</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 10,494　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc">一个自己找热点、自己写日报的网站框架。把信源和精选标准换成你的，它就是你的行业热点站。</div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">chinese</span><span class="chip">content-curation</span><span class="chip">daily-digest</span><span class="chip">docker-compose</span><span class="chip">llm</span><span class="chip">mcp</span><span class="chip">news-aggregator</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 22/25<div class="bar"><div class="fill" style="width:88%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 12/15<div class="bar"><div class="fill" style="width:80%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="langflow-ai/langflow">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">63</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/langflow-ai/langflow" target="_blank" rel="noopener">langflow-ai/langflow</a></div>
+          <div class="repo-meta">Python　·　⭐ 156,578　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">Langflow 是构建和部署 AI 智能体与工作流的强力工具。</div><div class="orig">原文：Langflow is a powerful tool for building and deploying AI-powered agents and workflows.</div></div>
+      <div class="chips"><span class="chip">agents</span><span class="chip">chatgpt</span><span class="chip">generative-ai</span><span class="chip">large-language-models</span><span class="chip">multiagent</span><span class="chip">react-flow</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      <div class="chips"><span class="chip good">部署文档</span></div>
+      
+      
+    </article>
+    <article class="card" id="harry0703/MoneyPrinterTurbo">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">62.8</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/harry0703/MoneyPrinterTurbo" target="_blank" rel="noopener">harry0703/MoneyPrinterTurbo</a></div>
+          <div class="repo-meta">Python　·　⭐ 142,915　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc">利用 AI 大模型和自动化工作流，根据主题或关键词一键生成高清短视频。Generate HD short videos from a topic or keyword with an automated AI workflow.</div>
+      <div class="chips"><span class="chip">ai-video-generator</span><span class="chip">content-creation</span><span class="chip">ffmpeg</span><span class="chip">instagram-reels</span><span class="chip">llm</span><span class="chip">python</span><span class="chip">short-video</span><span class="chip">subtitles</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18.8/20<div class="bar"><div class="fill" style="width:94%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 4/15<div class="bar"><div class="fill" style="width:27%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      <div class="chips"><span class="chip good">一键部署</span></div>
+      
+      
+    </article>
+    <article class="card" id="firecrawl/firecrawl">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">60</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/firecrawl/firecrawl" target="_blank" rel="noopener">firecrawl/firecrawl</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 201,291　·　AGPL-3.0</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">用来自网络及更广来源的数据为你的 AI 智能体赋能，正在构建服务于超级智能的资料库。🔥</div><div class="orig">原文：Supercharge your AI agents with data from the web and beyond. Building the library for superintelligence. 🔥</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">ai-agents</span><span class="chip">ai-crawler</span><span class="chip">ai-scraping</span><span class="chip">ai-search</span><span class="chip">crawler</span><span class="chip">data-extraction</span><span class="chip">html-to-markdown</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="langchain-ai/langchain">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">60</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/langchain-ai/langchain" target="_blank" rel="noopener">langchain-ai/langchain</a></div>
+          <div class="repo-meta">Python　·　⭐ 149,419　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">智能体工程平台。</div><div class="orig">原文：The agent engineering platform.</div></div>
+      <div class="chips"><span class="chip">agents</span><span class="chip">ai</span><span class="chip">ai-agents</span><span class="chip">anthropic</span><span class="chip">chatgpt</span><span class="chip">deepagents</span><span class="chip">enterprise</span><span class="chip">framework</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="shadcn-ui/ui">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">60</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/shadcn-ui/ui" target="_blank" rel="noopener">shadcn-ui/ui</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 128,026　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">可组合、无障碍的组件库，默认配置考究。用你可定制、扩展并完全掌控的代码，搭建自己的组件库（已扩展生成式 UI / gen-ui 方向）。</div><div class="orig">原文：Composable, accessible components with thoughtful defaults. Build your own component library with code you can customize, extend, and make your own.</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">base-ui</span><span class="chip">components</span><span class="chip">gen-ui</span><span class="chip">generative-ai</span><span class="chip">generative-ui</span><span class="chip">laravel</span><span class="chip">nextjs</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="browser-use/browser-use">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">60</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/browser-use/browser-use" target="_blank" rel="noopener">browser-use/browser-use</a></div>
+          <div class="repo-meta">Python　·　⭐ 120,851　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">面向 AI 浏览器智能体的开源 Python 库，另提供 Browser Use Cloud：隐身浏览器和托管式智能体 API。</div><div class="orig">原文：Open-source Python library for AI browser agents, plus Browser Use Cloud: stealth browsers and a hosted agent API.</div></div>
+      <div class="chips"><span class="chip">ai-agents</span><span class="chip">ai-tools</span><span class="chip">browser-agent</span><span class="chip">browser-automation</span><span class="chip">browser-use</span><span class="chip">cdp</span><span class="chip">cloud-browser</span><span class="chip">computer-use</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="langgenius/dify">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">59</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/langgenius/dify" target="_blank" rel="noopener">langgenius/dify</a></div>
+          <div class="repo-meta">Python　·　⭐ 161,058　·　NOASSERTION</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">在一个协作工作区里构建智能体工作流和 RAG 管道，支持丰富的 AI 模型与工具。可部署在云端、VPC 或本地自托管，让团队无需重搭技术栈就能从原型走到生产。</div><div class="orig">原文：Build Agentic workflows, RAG pipelines, with rich AI model and tool support on one collaborative workspace. Deploy on cloud, VPC, or self-hosted, so teams move from prototype to production without reb</div></div>
+      <div class="chips"><span class="chip">agent</span><span class="chip">agentic-ai</span><span class="chip">agentic-framework</span><span class="chip">agentic-workflow</span><span class="chip">ai</span><span class="chip">automation</span><span class="chip">claude</span><span class="chip">deepseek</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 2/10<div class="bar"><div class="fill" style="width:20%"></div></div></div></div>
+      <div class="chips"><span class="chip good">部署文档</span></div>
+      
+      
+    </article>
+    <article class="card" id="ollama/ollama">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">58.5</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/ollama/ollama" target="_blank" rel="noopener">ollama/ollama</a></div>
+          <div class="repo-meta">Go　·　⭐ 186,815　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">一键跑起 Kimi、GLM、MiniMax、DeepSeek、gpt-oss、Qwen、Gemma 等模型。</div><div class="orig">原文：Get up and running with Kimi, GLM, MiniMax, DeepSeek, gpt-oss, Qwen, Gemma and other models.</div></div>
+      <div class="chips"><span class="chip">deepseek</span><span class="chip">gemma</span><span class="chip">glm</span><span class="chip">go</span><span class="chip">golang</span><span class="chip">gpt-oss</span><span class="chip">llama</span><span class="chip">llm</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18.5/20<div class="bar"><div class="fill" style="width:92%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="Snailclimb/JavaGuide">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">58</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/Snailclimb/JavaGuide" target="_blank" rel="noopener">Snailclimb/JavaGuide</a></div>
+          <div class="repo-meta">JavaScript　·　⭐ 159,546　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc">Java 面试 &amp; 后端通用面试指南，覆盖计算机基础、数据库、分布式、高并发、系统设计与 AI 应用开发</div>
+      <div class="chips"><span class="chip">agent</span><span class="chip">ai</span><span class="chip">context-engineering</span><span class="chip">deepseek</span><span class="chip">interview</span><span class="chip">java</span><span class="chip">mcp</span><span class="chip">mysql</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18/20<div class="bar"><div class="fill" style="width:90%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="TauricResearch/TradingAgents">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">58</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/TauricResearch/TradingAgents" target="_blank" rel="noopener">TauricResearch/TradingAgents</a></div>
+          <div class="repo-meta">Python　·　⭐ 122,310　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">TradingAgents：多智能体 LLM 金融交易框架。</div><div class="orig">原文：TradingAgents: Multi-Agents LLM Financial Trading Framework</div></div>
+      <div class="chips"><span class="chip">agent</span><span class="chip">finance</span><span class="chip">llm</span><span class="chip">multiagent</span><span class="chip">trading</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18/20<div class="bar"><div class="fill" style="width:90%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="n8n-io/n8n">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">56</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/n8n-io/n8n" target="_blank" rel="noopener">n8n-io/n8n</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 210,333　·　NOASSERTION</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">公平代码（fair-code）许可的工作流自动化平台，自带原生 AI 能力。可视化搭建与自定义代码结合，支持自托管或云端，400+ 集成。</div><div class="orig">原文：Fair-code workflow automation platform with native AI capabilities. Combine visual building with custom code, self-host or cloud, 400+ integrations.</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">apis</span><span class="chip">automation</span><span class="chip">cli</span><span class="chip">data-flow</span><span class="chip">development</span><span class="chip">integration-framework</span><span class="chip">integrations</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 2/10<div class="bar"><div class="fill" style="width:20%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="Significant-Gravitas/AutoGPT">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">56</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/Significant-Gravitas/AutoGPT" target="_blank" rel="noopener">Significant-Gravitas/AutoGPT</a></div>
+          <div class="repo-meta">Python　·　⭐ 188,013　·　NOASSERTION</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">AutoGPT 的愿景是让人人都能便捷地使用和构建 AI。使命是提供工具，让你专注于真正重要的事。</div><div class="orig">原文：AutoGPT is the vision of accessible AI for everyone, to use and to build on. Our mission is to provide the tools, so that you can focus on what matters.</div></div>
+      <div class="chips"><span class="chip">agentic-ai</span><span class="chip">agents</span><span class="chip">ai</span><span class="chip">artificial-intelligence</span><span class="chip">autonomous-agents</span><span class="chip">claude</span><span class="chip">gpt</span><span class="chip">llama-api</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 2/10<div class="bar"><div class="fill" style="width:20%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="f/prompts.chat">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">56</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/f/prompts.chat" target="_blank" rel="noopener">f/prompts.chat</a></div>
+          <div class="repo-meta">MDX　·　⭐ 177,008　·　NOASSERTION</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">前身是 Awesome ChatGPT Prompts。在社区中分享、发现和收藏提示词。免费开源，可在组织内自托管，完全保护隐私。</div><div class="orig">原文：f.k.a. Awesome ChatGPT Prompts. Share, discover, and collect prompts from the community. Free and open source — self-host for your organization with complete privacy.</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">artificial-intelligence</span><span class="chip">awesome-list</span><span class="chip">chatgpt</span><span class="chip">chatgpt-prompts</span><span class="chip">claude</span><span class="chip">gemini</span><span class="chip">gpt</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 2/10<div class="bar"><div class="fill" style="width:20%"></div></div></div></div>
+      
+      
+      
+    </article>
+    <article class="card" id="open-webui/open-webui">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">56</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/open-webui/open-webui" target="_blank" rel="noopener">open-webui/open-webui</a></div>
+          <div class="repo-meta">Svelte　·　⭐ 158,505　·　NOASSERTION</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">易用的 AI 界面（支持 Ollama、OpenAI API 等）。</div><div class="orig">原文：User-friendly AI Interface (Supports Ollama, OpenAI API, ...)</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">llm</span><span class="chip">llm-ui</span><span class="chip">llm-webui</span><span class="chip">llms</span><span class="chip">mcp</span><span class="chip">ollama</span><span class="chip">ollama-webui</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 2/10<div class="bar"><div class="fill" style="width:20%"></div></div></div></div>
+      
+      
+      
+    </article></section><section class="cat" id="sec-free-tokens"><h2>免费与优惠 token 项目<span class="pill">1 个</span></h2>
+    <article class="card" id="NousResearch/hermes-agent">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">61.5</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener">NousResearch/hermes-agent</a></div>
+          <div class="repo-meta">Python　·　⭐ 262,970　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">与你一起成长的智能体。</div><div class="orig">原文：The agent that grows with you</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">ai-agent</span><span class="chip">ai-agents</span><span class="chip">anthropic</span><span class="chip">chatgpt</span><span class="chip">claude</span><span class="chip">claude-code</span><span class="chip">codex</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 15.5/20<div class="bar"><div class="fill" style="width:78%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      <div class="chips"><span class="chip good">部署文档</span><span class="chip good">Docker</span><span class="chip good">云按钮</span></div>
+      <div class="free"><h4>🎁 免费 / 优惠情报</h4><ul><li><b>权益类型</b>：形态相关</li><li><b>国内可用</b>：未注明（默认按海外服务对待）</li><li><b>项目形态</b>：OpenRouter 路由</li></ul></div>
+      <div class="secondary">同时涉及：ai-tools（按主归属「免费与优惠 token 项目」展示）</div>
+    </article></section><section class="cat" id="sec-ai-tech"><h2>最近 AI 技术<span class="pill">4 个</span></h2>
+    <article class="card" id="CopilotKit/OpenBot">
+      <div class="card-top">
+        <div class="grade" style="background:#389e0d"><span class="g">A</span><span class="s">66.7</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/CopilotKit/OpenBot" target="_blank" rel="noopener">CopilotKit/OpenBot</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 11,592　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">开源 AI 同事：每个都有自己的电脑（浏览器、文件和工具），每个动作执行前先决策、执行后留痕。可接入任意 AG-UI 智能体。</div><div class="orig">原文：Open-source AI coworkers that each get a computer of their own: a browser, files and tools, with every action decided before it happens and recorded after. Bring any AG-UI agent.</div></div>
+      <div class="chips"><span class="chip">ag-ui</span><span class="chip">agent-governance</span><span class="chip">ai-agents</span><span class="chip">browser-automation</span><span class="chip">copilotkit</span><span class="chip">generative-ui</span><span class="chip">mcp</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 22.7/25<div class="bar"><div class="fill" style="width:91%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 12/15<div class="bar"><div class="fill" style="width:80%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「最近 AI 技术」展示）</div>
+    </article>
+    <article class="card" id="miuuyy/codex-chatgpt-web">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">64.8</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/miuuyy/codex-chatgpt-web" target="_blank" rel="noopener">miuuyy/codex-chatgpt-web</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 15,698　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">把 ChatGPT 网页版（含 Pro）当作 Codex 的原生模型来用——支持上下文、工具、流式输出和图片，且不消耗 Codex 额度。</div><div class="orig">原文：Use ChatGPT Web (including Pro) as a native model in Codex — with context, tools, streaming and images, without using Codex quota.</div></div>
+      <div class="chips"><span class="chip">chatgpt</span><span class="chip">chatgpt-pro</span><span class="chip">codex</span><span class="chip">free-ai</span><span class="chip">mcp</span><span class="chip">openai</span><span class="chip">playwright</span><span class="chip">quickstart</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18.8/20<div class="bar"><div class="fill" style="width:94%"></div></div></div><div class="dim"><b>技术前沿度</b> 9/15<div class="bar"><div class="fill" style="width:60%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「最近 AI 技术」展示）</div>
+    </article>
+    <article class="card" id="makecindy/cindy">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">58.1</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/makecindy/cindy" target="_blank" rel="noopener">makecindy/cindy</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 9,956　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc">Consider it done. The open-source AI agent that works out of the box · 想到，就能做到。开源、开箱即用的 AI Agent。</div>
+      <div class="chips"><span class="chip">agent</span><span class="chip">ai-agent</span><span class="chip">ai-assistant</span><span class="chip">android</span><span class="chip">claude-code</span><span class="chip">codex</span><span class="chip">electron</span><span class="chip">ios</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 21.6/25<div class="bar"><div class="fill" style="width:86%"></div></div></div><div class="dim"><b>项目健康度</b> 15.5/20<div class="bar"><div class="fill" style="width:78%"></div></div></div><div class="dim"><b>技术前沿度</b> 9/15<div class="bar"><div class="fill" style="width:60%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「最近 AI 技术」展示）</div>
+    </article>
+    <article class="card" id="shengjidaguai-china/goutoujunshi">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">56.2</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/shengjidaguai-china/goutoujunshi" target="_blank" rel="noopener">shengjidaguai-china/goutoujunshi</a></div>
+          <div class="repo-meta">Python　·　⭐ 9,573　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc">一个先接住情绪、再分析关系并给出可执行策略的 Codex 恋爱军师，内置心理、法律、社会、人文、哲学、婚姻家庭与性学知识库，支持多元关系。</div>
+      <div class="chips"><span class="chip">ai-agent</span><span class="chip">chinese</span><span class="chip">codex</span><span class="chip">codex-skill</span><span class="chip">lgbtq</span><span class="chip">psychology</span><span class="chip">relationship-advice</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 21.4/25<div class="bar"><div class="fill" style="width:86%"></div></div></div><div class="dim"><b>项目健康度</b> 13.8/20<div class="bar"><div class="fill" style="width:69%"></div></div></div><div class="dim"><b>技术前沿度</b> 9/15<div class="bar"><div class="fill" style="width:60%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「最近 AI 技术」展示）</div>
+    </article></section><section class="cat" id="sec-agent-skills"><h2>Agent 生态 · Skills / DSH<span class="pill">12 个</span></h2>
+    <article class="card" id="ccch1mneyyy/dsh-Go">
+      <div class="card-top">
+        <div class="grade" style="background:#d4380d"><span class="g">S</span><span class="s">83.2</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/ccch1mneyyy/dsh-Go" target="_blank" rel="noopener">ccch1mneyyy/dsh-Go</a></div>
+          <div class="repo-meta">Dart　·　⭐ 20,735　·　AGPL-3.0</div>
+        </div>
+      </div>
+      <div class="desc">dsh-go — DeepSeek Harness 装进口袋：手机本机运行，也能遥控你的电脑。</div>
+      <div class="chips"><span class="chip">ai-agent</span><span class="chip">android</span><span class="chip">android-app</span><span class="chip">coding-agent</span><span class="chip">deepseek</span><span class="chip">deepseek-harness</span><span class="chip">dsh</span><span class="chip">dsh-plugin</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 17.2/20<div class="bar"><div class="fill" style="width:86%"></div></div></div><div class="dim"><b>技术前沿度</b> 15/15<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>可上手性</b> 9/15<div class="bar"><div class="fill" style="width:60%"></div></div></div><div class="dim"><b>国内与中文</b> 11/15<div class="bar"><div class="fill" style="width:73%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      <div class="chips"><span class="chip good">一键部署</span><span class="chip good">部署文档</span><span class="chip good">中文</span></div>
+      
+      <div class="secondary">同时涉及：ai-tools、ai-tech（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="morluto/rea">
+      <div class="card-top">
+        <div class="grade" style="background:#389e0d"><span class="g">A</span><span class="s">66</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/morluto/rea" target="_blank" rel="noopener">morluto/rea</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 455,245　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">用智能体对任意目标做逆向工程，从 App 行为一路分析到原生二进制。</div><div class="orig">原文：Reverse engineer anything with agents, from app behavior down to native binaries.</div></div>
+      <div class="chips"><span class="chip">agent-skills</span><span class="chip">ai</span><span class="chip">android</span><span class="chip">claude-code</span><span class="chip">cli</span><span class="chip">cpp</span><span class="chip">dsh-plugin</span><span class="chip">html</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>可上手性</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      <div class="chips"><span class="chip good">部署文档</span></div>
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="affaan-m/ECC">
+      <div class="card-top">
+        <div class="grade" style="background:#389e0d"><span class="g">A</span><span class="s">66</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/affaan-m/ECC" target="_blank" rel="noopener">affaan-m/ECC</a></div>
+          <div class="repo-meta">JavaScript　·　⭐ 302,019　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">智能体 harness 性能优化系统：为 Claude Code、Codex、Opencode、Cursor 等提供技能、直觉、记忆、安全与研究优先的开发范式。</div><div class="orig">原文：The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond.</div></div>
+      <div class="chips"><span class="chip">ai-agents</span><span class="chip">anthropic</span><span class="chip">claude</span><span class="chip">claude-code</span><span class="chip">developer-tools</span><span class="chip">llm</span><span class="chip">mcp</span><span class="chip">productivity</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>可上手性</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      <div class="chips"><span class="chip good">部署文档</span></div>
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="genspark-ai/genoffice">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">64.2</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/genspark-ai/genoffice" target="_blank" rel="noopener">genspark-ai/genoffice</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 12,248　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">免费开源的 AI 办公套件：文档、表格、幻灯片、PDF、Markdown 和 HTML 编辑器，内置 AI 智能体，另带 genoffice CLI 和智能体技能，让 Claude Code、Codex、Cursor 在本地直接创建和编辑真实的 .docx/.xlsx/.pptx 文件。自带 key 即可，支持 macOS/Windows/Linux。</div><div class="orig">原文：Free, open-source AI Office suite: Docs, Sheets, Slides, PDF, Markdown and HTML editors with a built-in AI agent, plus a `genoffice` CLI and agent skill so Claude Code, Codex and Cursor can create and</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">ai-agent</span><span class="chip">claude-code</span><span class="chip">cli</span><span class="chip">codex</span><span class="chip">cursor</span><span class="chip">docx</span><span class="chip">excel</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 23.2/25<div class="bar"><div class="fill" style="width:93%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 9/15<div class="bar"><div class="fill" style="width:60%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools、ai-tech（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="rehan-remade/universal-modder">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">64.2</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/rehan-remade/universal-modder" target="_blank" rel="noopener">rehan-remade/universal-modder</a></div>
+          <div class="repo-meta">Python　·　⭐ 9,645　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">让 Claude 改造任意游戏。配套技能、工具和 fal MCP，让 Claude Code 能给几乎任意 PC 游戏做模组：侦察、逆向、fal 生成美术/3D/音频、游戏内测试和演示视频。</div><div class="orig">原文：Point Claude at any game. Skills, tools and the fal MCP that let Claude Code mod almost any PC game you own: recon, reverse engineering, fal-generated art/3D/audio, in-game testing, showcase videos.</div></div>
+      <div class="chips"><span class="chip">age-of-empires</span><span class="chip">claude-code</span><span class="chip">claude-code-plugin</span><span class="chip">fal</span><span class="chip">game-assets</span><span class="chip">game-modding</span><span class="chip">mcp</span><span class="chip">modding</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 21.4/25<div class="bar"><div class="fill" style="width:86%"></div></div></div><div class="dim"><b>项目健康度</b> 18.8/20<div class="bar"><div class="fill" style="width:94%"></div></div></div><div class="dim"><b>技术前沿度</b> 12/15<div class="bar"><div class="fill" style="width:80%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools、ai-tech（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="DietrichGebert/ponytail">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">64</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/DietrichGebert/ponytail" target="_blank" rel="noopener">DietrichGebert/ponytail</a></div>
+          <div class="repo-meta">JavaScript　·　⭐ 189,780　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">让你的 AI 智能体像团队里最懒的资深开发一样思考——最好的代码，是你根本没写的代码。</div><div class="orig">原文：Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.</div></div>
+      <div class="chips"><span class="chip">agent-skills</span><span class="chip">ai-agents</span><span class="chip">claude</span><span class="chip">claude-code</span><span class="chip">claude-code-plugin</span><span class="chip">cursor-rules</span><span class="chip">developer-tools</span><span class="chip">llm</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18/20<div class="bar"><div class="fill" style="width:90%"></div></div></div><div class="dim"><b>技术前沿度</b> 9/15<div class="bar"><div class="fill" style="width:60%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="Ryze-AI-Adgent/open-seo-mcp-skills">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">63.3</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/Ryze-AI-Adgent/open-seo-mcp-skills" target="_blank" rel="noopener">Ryze-AI-Adgent/open-seo-mcp-skills</a></div>
+          <div class="repo-meta">Shell　·　⭐ 9,424　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">免费的 SEO MCP server，加开源的 SEO/GEO 技能（面向 Claude）：关键词调研、排名追踪、站点审计、外链，以及基于你真实 GSC/GA4/广告数据的 AI 可见度分析。</div><div class="orig">原文：Free SEO MCP server + open-source SEO and GEO skills for Claude: keyword research, rank tracking, audits, backlinks, AI visibility on your real GSC/GA4/ads data. claude mcp add ryze --transport http h</div></div>
+      <div class="chips"><span class="chip">ai-seo</span><span class="chip">ai-visibility</span><span class="chip">backlinks</span><span class="chip">claude</span><span class="chip">claude-code</span><span class="chip">claude-skills</span><span class="chip">dataforseo</span><span class="chip">generative-engine-optimization</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 21.3/25<div class="bar"><div class="fill" style="width:85%"></div></div></div><div class="dim"><b>项目健康度</b> 18/20<div class="bar"><div class="fill" style="width:90%"></div></div></div><div class="dim"><b>技术前沿度</b> 12/15<div class="bar"><div class="fill" style="width:80%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools、ai-tech（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="Graphify-Labs/graphify">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">63</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/Graphify-Labs/graphify" target="_blank" rel="noopener">Graphify-Labs/graphify</a></div>
+          <div class="repo-meta">Python　·　⭐ 146,749　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">把任意代码库（连同文档、SQL schema、配置和 PDF）变成可查询的知识图谱。提供 /graphify 技能给 Claude Code、Cursor、Codex、Gemini CLI：本地确定性 AST 解析，每条边都可解释，无需向量库。</div><div class="orig">原文：Turn any codebase, with its docs, SQL schemas, configs, and PDFs, into a queryable knowledge graph. A /graphify skill for Claude Code, Cursor, Codex, and Gemini CLI: local deterministic AST parsing, e</div></div>
+      <div class="chips"><span class="chip">ai-agents</span><span class="chip">antigravity</span><span class="chip">ast</span><span class="chip">claude-code</span><span class="chip">code-analysis</span><span class="chip">code-search</span><span class="chip">codex</span><span class="chip">cursor</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="JuliusBrussee/caveman">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">63</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/JuliusBrussee/caveman" target="_blank" rel="noopener">JuliusBrussee/caveman</a></div>
+          <div class="repo-meta">Go　·　⭐ 119,427　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">🪨 能用更少 token 说清，何必用那么多。一个走红的编程智能体技能 + 代理，用「穴居人」式精简表达砍掉 65% 的 token。</div><div class="orig">原文：🪨 why use many token when few token do trick. Viral skill + proxy for coding agents that cuts 65% of tokens by talking like a caveman.</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">anthropic</span><span class="chip">caveman</span><span class="chip">claude</span><span class="chip">claude-code</span><span class="chip">llm</span><span class="chip">meme</span><span class="chip">prompt-engineering</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="paperclipai/paperclip">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">61.5</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/paperclipai/paperclip" target="_blank" rel="noopener">paperclipai/paperclip</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 113,400　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">大家都在用的开源应用，用来管理工作中的各类智能体。</div><div class="orig">原文：The open-source app everyone uses to manage agents at work</div></div>
+      <div class="chips"><span class="chip">acpx</span><span class="chip">agent-orchestration</span><span class="chip">agent-skills</span><span class="chip">agentic-ai</span><span class="chip">ai-agents</span><span class="chip">ai-engineering</span><span class="chip">ai-governance</span><span class="chip">ai-tools</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 18.5/20<div class="bar"><div class="fill" style="width:92%"></div></div></div><div class="dim"><b>技术前沿度</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="farion1231/cc-switch">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">60</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/farion1231/cc-switch" target="_blank" rel="noopener">farion1231/cc-switch</a></div>
+          <div class="repo-meta">Rust　·　⭐ 153,942　·　MIT</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">跨平台桌面端 All-in-One 助手，面向 Claude Code、Codex、OpenCode、DeepSeek Harness 等。唯一官网：ccswitch.io。</div><div class="orig">原文：A cross-platform desktop All-in-One assistant for Claude Code, Codex, OpenCode,DeepSeek Harness and more. Only official website: ccswitch.io</div></div>
+      <div class="chips"><span class="chip">ai-tools</span><span class="chip">claude-code</span><span class="chip">codex</span><span class="chip">deepseek-harness</span><span class="chip">desktop-app</span><span class="chip">grok</span><span class="chip">grokbuild</span><span class="chip">hermes</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article>
+    <article class="card" id="thedotmack/claude-mem">
+      <div class="card-top">
+        <div class="grade" style="background:#0958d9"><span class="g">B</span><span class="s">60</span></div>
+        <div>
+          <div class="repo-name"><a href="https://github.com/thedotmack/claude-mem" target="_blank" rel="noopener">thedotmack/claude-mem</a></div>
+          <div class="repo-meta">TypeScript　·　⭐ 116,568　·　Apache-2.0</div>
+        </div>
+      </div>
+      <div class="desc"><div class="zh">为每个智能体提供跨会话的持久上下文——记录智能体在会话中的所有操作，用 AI 压缩，并在后续任务中注入相关上下文。</div><div class="orig">原文：Persistent Context Across Sessions for Every Agent –  Captures everything your agent does during sessions, compresses it with AI, and injects relevant context back into future sessions. Works with Cla</div></div>
+      <div class="chips"><span class="chip">ai</span><span class="chip">ai-agents</span><span class="chip">ai-memory</span><span class="chip">anthropic</span><span class="chip">artificial-intelligence</span><span class="chip">chromadb</span><span class="chip">claude</span><span class="chip">claude-agent-sdk</span></div>
+      <div class="dims"><div class="dim"><b>热度与增速</b> 25/25<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>项目健康度</b> 20/20<div class="bar"><div class="fill" style="width:100%"></div></div></div><div class="dim"><b>技术前沿度</b> 3/15<div class="bar"><div class="fill" style="width:20%"></div></div></div><div class="dim"><b>可上手性</b> 0/15<div class="bar"><div class="fill" style="width:0%"></div></div></div><div class="dim"><b>国内与中文</b> 6/15<div class="bar"><div class="fill" style="width:40%"></div></div></div><div class="dim"><b>风险与合规</b> 6/10<div class="bar"><div class="fill" style="width:60%"></div></div></div></div>
+      
+      
+      <div class="secondary">同时涉及：ai-tools（按主归属「Agent 生态 · Skills / DSH」展示）</div>
+    </article></section>
+  <section class="news" id="sec-news"><h2>📰 AI 资讯<span class="pill">112 条 · RSS/Atom 信源</span></h2><div class="news-group"><h3>个人与社区（16）</h3><div class="news-item"><a href="https://latent.space/p/ainews-d-day-decision-models-day/" target="_blank" rel="noopener">[11-12] [AINews] D-Day (Decision Models Day)</a><div class="nmeta">来源：Latent Space</div><div class="nsum">Today was the “System One day” of the second annual AIE CODE event, and somehow everything aligned: Cloudflare’s Michelle Chen walked through their Clef and Clairic models Richard covered Diogo’s triu</div></div><div class="news-item"><a href="https://latent.space/p/jev-revolution/" target="_blank" rel="noopener">[11-12] The Jev Revolution: What Engineers Are Already Building with System One Models</a><div class="nmeta">来源：Latent Space</div><div class="nsum">Today at the AI Engineer Code Summit, the main theme was system one models — non-generative models that return structured choices, scores, or probabilities. They’re also typically much faster and chea</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/gemini-decisions-api/" target="_blank" rel="noopener">[11-11] Gemini Decisions API</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Gemini Decisions API Google join Jev and OpenAI in the decision model category with &quot;Gemini Decision 1&quot;. This new model API is almost identical to Jev: it supports the same three types of questions (y</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/aws-emulator/" target="_blank" rel="noopener">[11-11] aws-emulator</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">aws-emulator Finally, an official emulator from AWS to run tests against a local clone of their many different services without having to provision a paid API key to do so. It&#x27;s written in Rust by a h</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/tools-tags/" target="_blank" rel="noopener">[11-11] Browse tools.simonwillison.net by tag</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Browse tools.simonwillison.net by tag I&#x27;ve been wanting a better way to browse my collection of vibe-coded tools (244 and counting) for a while. I had a few Fable 5.2 credits left over before my weekl</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/llm/" target="_blank" rel="noopener">[11-11] llm 0.37.2</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Release: llm 0.37.2 Fixes a security issue reported by Daniel de Araujo in GHSA-v9h7-jj4g-f862 and GHSA-r639-rr7r-x72w. LLM has a mechanism called extra-openai-models.yaml - now managed by the new-in-</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/anthropic-ipo-roadshow/" target="_blank" rel="noopener">[11-11] Anthropic&#x27;s IPO roadshow video</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Anthropic&amp;#x27;s IPO roadshow video Anthropic kicked off their IPO roadshow yesterday, and their roadshow video has some previously unreleased information about how their business works. The section o</div></div><div class="news-item"><a href="https://latent.space/p/ainews-mercor-750m-series-d-at-20b-valuation-3b-run-rate/" target="_blank" rel="noopener">[11-11] [AINews] Mercor $750m Series D at $20B valuation, $3B run rate</a><div class="nmeta">来源：Latent Space</div><div class="nsum">Our usual bar for making a fundraise a title story these days is a decacorn ($10B) valuation. We missed Mercor’s $10B Series C last year when it had less than $500m in revenue, but knew we wouldn’t ha</div></div><div class="news-item"><a href="https://latent.space/p/codex-work/" target="_blank" rel="noopener">[11-11] AI Engineer Code Summit: OpenAI on New Ways of Working With Codex</a><div class="nmeta">来源：Latent Space</div><div class="nsum">AI Engineer Code Summit kicked off today with a series of workshops, including from leading frontier labs OpenAI, Anthropic and Google DeepMind. I attended the OpenAI workshop, intriguingly titled “Ne</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/10/llm-gemini/" target="_blank" rel="noopener">[11-10] llm-gemini 0.36</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Release: llm-gemini 0.36 Gemini 4 Carbon was announced two weeks ago for &quot;a subset of cyber defenders&quot;, but today it&#x27;s available to everyone else. This is Google&#x27;s best ever Gemini, priced at $2/milli</div></div><div class="news-item"><a href="https://latent.space/p/resend/" target="_blank" rel="noopener">[11-10] Designing for Agents — Zeno Rocha, Resend</a><div class="nmeta">来源：Latent Space</div><div class="nsum">Today’s podcast comes from a real life mystery: We are big fans of Cloudflare’s developer platform, and Cloudflare Email is a convenient tool especially when all your domains are already on Cloudflare</div></div><div class="news-item"><a href="https://latent.space/p/naiveai/" target="_blank" rel="noopener">[11-10] NaiveAI Promises 2,100 Tokens per Second. How Well Does It Code?</a><div class="nmeta">来源：Latent Space</div><div class="nsum">Editor’s note: With this post, we are launching a new series focused on trying new models and products with unbiased reviews. Reach out with suggestions to tips@latent.space.Naive-N0.5-Flash is a new </div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/10/muse-ember/" target="_blank" rel="noopener">[11-10] Introducing Our Smallest, Most Efficient Model: Muse Ember</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Introducing Our Smallest, Most Efficient Model: Muse Ember Meta AI just launched their entry in the Claude Haiku/GPT Luna category: Muse Ember, which they describe as: [...] our smallest and most effi</div></div><div class="news-item"><a href="https://latent.space/p/ainews-fable-5-2-retakes-world-1-llm-spot-as-ant-ipo-roadshow-begins/" target="_blank" rel="noopener">[11-10] [AINews] Fable 5.2 retakes World #1 LLM spot as $ANT IPO roadshow begins</a><div class="nmeta">来源：Latent Space</div><div class="nsum">On Friday, we asked Jamin Ball what comes next for Anthropic’s IPO. On Monday the roadshow started and Anthropic shipped the long-anticipated next-version of Claude Fable and Mythos. Of course, it is </div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/10/prompting-claude-fable-52/" target="_blank" rel="noopener">[11-10] Quoting Prompting Claude Fable 5.2</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">Claude Fable 5.2 pays close attention to who owns the code it works on. In Anthropic’s testing on small coding tasks, the model tended to add to the existing structure when the prompt said nothing abo</div></div><div class="news-item"><a href="https://latent.space/p/handshake/" target="_blank" rel="noopener">[11-09] What Frontier Labs Buy: A Data Deep Dive with Handshake AI — Garrett Lord &amp; Team</a><div class="nmeta">来源：Latent Space</div><div class="nsum">This is our first Latent Space deep dive with an AI data company. In roughly a year, Handshake’s AI training business went from launch to $1 billion in gross annualized revenue. What are frontier labs</div></div></div><div class="news-group"><h3>科技媒体（40）</h3><div class="news-item"><a href="https://techcrunch.com/2026/11/11/who-could-replace-jensen-huang-a-highly-unscientific-list-of-possible-successors/" target="_blank" rel="noopener">[11-12] Who could replace Jensen Huang? A highly unscientific list of possible successors</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">Nvidia has no succession plan and a CEO in hot water, so we’ve drafted a shortlist.</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/11/nvidia-ceo-jensen-huangs-affair-with-alleged-chinese-spy-a-timeline/" target="_blank" rel="noopener">[11-11] The unfolding Jensen Huang scandal: a timeline</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">The affair could have ramifications for national security as the U.S. and China race to develop the most advanced AI infrastructure.</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/11/nvidias-stock-drops-as-board-reportedly-preps-to-oust-ceo-jensen-huang/" target="_blank" rel="noopener">[11-11] Nvidia’s stock drops as board reportedly preps to oust CEO Jensen Huang</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">As soon as Wednesday evening, Nvidia&#x27;s board could decide to remove its founder and CEO of 33 years.</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/11/jensen-huang-accused-of-having-another-affair-with-a-nvidia-exec/" target="_blank" rel="noopener">[11-11] Jensen Huang accused of having another affair — with an Nvidia exec</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">Jensen Huang, who has come under fire for admitting to an affair with a woman accused of being a Chinese intelligence agent, has been accused of having a separate affair with an Nvidia subordinate.</div></div><div class="news-item"><a href="https://www.theverge.com/tech/1031652/jensen-huang-rumor" target="_blank" rel="noopener">[11-11] Nvidia is reportedly preparing to fire Jensen Huang</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">Nvidia&#x27;s board is preparing to dismiss CEO Jensen Huang following a report from the New York Times about a second alleged extramarital affair, just days after he admitted to a separate affair with a w</div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1031623/united-unauthorized-ai-agents" target="_blank" rel="noopener">[11-11] United won’t let your AI agent book your flight</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">United says it won&#x27;t let personal AI assistants book tickets on the airline, citing both privacy and regulatory concerns. The company says it hasn&#x27;t yet seen many people try to use AI agents to book t</div></div><div class="news-item"><a href="https://techcrunch.com/video/why-the-data-center-you-dread-might-never-even-be-built/" target="_blank" rel="noopener">[11-11] Why the data center you dread might never even be built</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">The data center boom is running into serious real-world obstacles, from widespread local opposition and permitting delays to a scramble for electricity.&amp;#160;Before those challenges even come into pla</div></div><div class="news-item"><a href="https://the-decoder.com/google-joins-the-decision-model-wave-with-gemini-decision-1-scoring-1000-questions-in-a-single-pass/" target="_blank" rel="noopener">[11-11] Google joins the decision-model wave with Gemini Decision 1, scoring 1,000 questions in a single pass</a><div class="nmeta">来源：The Decoder</div><div class="nsum">Google Deepmind&#x27;s new Gemini Decisions API evaluates up to 1,000 closed-ended questions in a single pass across text, images, audio, and video. Gemini Decision 1 returns results in 150 to 250 millisec</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/11/meta-is-losing-its-longtime-head-of-infrastructure/" target="_blank" rel="noopener">[11-11] Meta is losing its longtime head of infrastructure</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">Santosh Janardhan, who originally joined the company in 2009, will be stepping down from his role.</div></div><div class="news-item"><a href="https://techcrunch.com/podcast/how-backlash-and-red-tape-continue-to-slow-data-centers-post-blue-wave/" target="_blank" rel="noopener">[11-11] How backlash and red tape continue to slow data centers post-Blue Wave</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">The data center boom is running into serious real-world obstacles, from widespread local opposition and permitting delays to a scramble for electricity.&amp;#160;Before those challenges even come into pla</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/11/coreweave-turns-to-customer-prepayments-shorter-contracts-to-fund-ai-growth/" target="_blank" rel="noopener">[11-11] CoreWeave turns to customer prepayments, shorter contracts to fund AI growth</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nsum">CoreWeave is increasingly asking customers to pay up front, borrowing against specific contracts, and even looking to short-term deals that could lead to higher prices, according to the company’s thir</div></div><div class="news-item"><a href="https://the-decoder.com/us-corporate-ai-spending-hits-a-new-high-in-october-but-growth-slows-to-1-65-percent/" target="_blank" rel="noopener">[11-11] US corporate AI spending hits a new high in October, but growth slows to 1.65 percent</a><div class="nmeta">来源：The Decoder</div><div class="nsum">According to the Ramp AI Index, US corporate AI spending rose just 1.65 percent in October 2026. One percent of companies still drive 80 percent of revenue for OpenAI and Anthropic. Customer support i</div></div><div class="news-item"><a href="https://the-decoder.com/google-deepminds-alphaproof-code-verified-signals-cryptographic-core-in-four-weeks-instead-of-years/" target="_blank" rel="noopener">[11-11] Google Deepmind&#x27;s AlphaProof Code verified Signal&#x27;s cryptographic core in four weeks instead of years</a><div class="nmeta">来源：The Decoder</div><div class="nsum">Google Deepmind&#x27;s AlphaProof Code mathematically verified Signal&#x27;s cryptographic core code in four weeks, a process that typically takes years. AI agents powered by Gemini Carbon wrote more than six m</div></div><div class="news-item"><a href="https://arstechnica.com/ai/2026/11/taiwans-chipmaking-giant-tsmc-to-invest-1b-in-anthropic-openai/" target="_blank" rel="noopener">[11-11] Taiwan’s chipmaking giant TSMC to invest $1B in Anthropic, OpenAI</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Top chip manufacturer TSMC is ready to invest $1 billion in Anthropic and OpenAI. That would give the Taiwanese chipmaker direct stakes in leading AI developers, even as its own contract chipmaking bu</div></div><div class="news-item"><a href="https://arstechnica.com/gaming/2026/11/big-walk-used-ai-to-fix-a-bug-now-the-indie-gaming-world-is-having-a-reckoning/" target="_blank" rel="noopener">[11-11] Big Walk used AI to fix a bug. Now the indie gaming world is having a reckoning.</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">The last few years have seen significant debate over the widespread use of AI-powered tools in game development and the responsible disclosure of that usage to players. That debate has exploded into a</div></div><div class="news-item"><a href="https://www.theverge.com/tech/1031526/google-tabletop-ai-experiment-waitlist-availability" target="_blank" rel="noopener">[11-11] Google’s Tabletop AI experiment lets you build custom collaboration apps</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">Google has cooked up a new experimental AI tool called Tabletop that generates customized collaborative hubs to help you coordinate with family, and friends. The Tabletop platform shares some visual s</div></div><div class="news-item"><a href="https://the-decoder.com/helsing-built-an-ai-system-that-prepares-targets-for-weapons-systems-and-says-every-decision-will-carry-a-human-name/" target="_blank" rel="noopener">[11-11] Helsing built an AI system that prepares targets for weapons systems and says every decision will carry a human name</a><div class="nmeta">来源：The Decoder</div><div class="nsum">Helsing has unveiled Clarity, an AI platform that uses agents to distill sensor data into target recommendations for weapons systems, all under human oversight and European control. But experience fro</div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1031524/google-deepmind-alphagenome-2-genetic-ai-model" target="_blank" rel="noopener">[11-11] Google’s AlphaGenome 2 zooms in on the cellular roots of disease</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">Researchers at Google DeepMind have unveiled a new AI model designed to unravel how changes in our DNA affect different cells, giving scientists a more detailed view of a notoriously difficult problem</div></div><div class="news-item"><a href="https://the-decoder.com/anthropic-says-ai-is-eroding-nvidias-cuda-lead-cutting-an-amd-chip-switch-from-months-to-three-days/" target="_blank" rel="noopener">[11-11] Anthropic says AI is eroding Nvidia&#x27;s CUDA lead, cutting an AMD chip switch from months to three days</a><div class="nmeta">来源：The Decoder</div><div class="nsum">Anthropic claims it used AI itself to breach Nvidia&#x27;s CUDA moat. The company&#x27;s in-house model Mythos reportedly ported Claude to AMD GPUs in just three days, with almost no human intervention. Anthrop</div></div><div class="news-item"><a href="https://arstechnica.com/ai/2026/11/signals-encryption-just-passed-an-ai-powered-mathematical-checkup/" target="_blank" rel="noopener">[11-11] Google DeepMind just mathematically verified key parts of Signal</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Google DeepMind researchers used agentic AI to mathematically prove, or “formally verify,” a number of the Signal protocol’s key cryptographic guarantees—a landmark development for the widely used cry</div></div><div class="news-item"><a href="https://www.theverge.com/tech/1031505/adobe-max-2026-sneaks-experiments-ai" target="_blank" rel="noopener">[11-11] Adobe’s AI experiments let you walk around in photos and interview your characters</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">Some of the most impressive tech that Adobe showcases at its annual Max conference each year is the experimental features it&#x27;s developing, and the latest of those tools are being announced today: they</div></div><div class="news-item"><a href="https://the-decoder.com/us-data-brokers-are-selling-half-a-billion-dollars-in-rl-training-environments-to-chinese-ai-labs/" target="_blank" rel="noopener">[11-11] US data brokers are selling half a billion dollars in RL training environments to Chinese AI labs</a><div class="nmeta">来源：The Decoder</div><div class="nsum">US data brokers like Mercor, Surge AI, and AfterQuery are selling roughly half a billion dollars&#x27; worth of AI training data to Chinese labs, according to a ChinaTalk investigation. That includes the s</div></div><div class="news-item"><a href="https://the-decoder.com/with-its-new-voice-model-deepl-voice-now-translates-intonation-and-speaking-speed-into-other-languages-as-well/" target="_blank" rel="noopener">[11-11] DeepL wants real-time translation to finally capture sarcasm and mood shifts</a><div class="nmeta">来源：The Decoder</div><div class="nsum">DeepL Voice&#x27;s real-time translations are about to sound a lot more natural. The company&#x27;s new Aure model carries over tone, emotion, emphasis, and speaking pace from the original speaker&#x27;s voice into </div></div><div class="news-item"><a href="https://the-decoder.com/grok-built-apps-exposed-patient-data-plaintext-passwords-and-spacexsis-own-sales-pipeline/" target="_blank" rel="noopener">[11-11] Grok-built apps exposed patient data, plaintext passwords, and SpaceXSI&#x27;s own sales pipeline</a><div class="nmeta">来源：The Decoder</div><div class="nsum">Security firm Claroc found more than 35,000 Grok-built apps open to anyone without login, including patient data and confidential SpaceXSI documents. The cause: &quot;Anyone with the link&quot; was preselected </div></div><div class="news-item"><a href="https://arstechnica.com/ai/2026/11/ring-cameras-go-mobile-as-amazon-debuts-ai-powered-security-drone-and-robot/" target="_blank" rel="noopener">[11-10] Ring cameras go mobile as Amazon debuts AI-powered security drone and robot</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Amazon is betting that many Ring customers will also want an AI-powered security drone and robot patrolling their homes or offices. But the company’s upcoming Ring Robotic products are also certain to</div></div><div class="news-item"><a href="https://arstechnica.com/security/2026/11/grok-build-coding-agent-leaks-oodles-of-confidential-info-some-belonging-to-spacexsi/" target="_blank" rel="noopener">[11-10] Grok Build coding agent leaks oodles of confidential info, some belonging to SpaceXSI</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Grok Build, the vibe-coding agent from SpaceXSI, is leaking data—some of it proprietary business information and other sensitive secrets—from thousands of its users, including the very same Elon Musk-</div></div><div class="news-item"><a href="https://arstechnica.com/science/2026/11/what-happens-to-mathematics-when-ai-becames-an-oracle/" target="_blank" rel="noopener">[11-10] What happens to mathematics when AI becomes an oracle?</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Our modern world runs on math, from social media algorithms, package delivery, and weather prediction to medical imaging and machine learning. The rise of computers helped fuel its dominance, enabling</div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1031063/jensen-huang-ai-race-us-china-spy" target="_blank" rel="noopener">[11-10] The US is winning the AI race. Jensen Huang could have blown it</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">As espionage targets go, Jensen Huang is perhaps one of the least surprising on Earth. The Nvidia CEO runs one of the world&#x27;s most valuable companies, controls the in-demand technology fueling the AI </div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1030552/openai-chatgpt-business-agents-hub" target="_blank" rel="noopener">[11-10] ChatGPT is getting verified AI ‘Business Agents’</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">ChatGPT is going to let you chat with verified &quot;Business Agents&quot; that represent a brand to help you with things like comparison shopping. The feature, available first to &quot;eligible&quot; e-commerce and onli</div></div><div class="news-item"><a href="https://www.theverge.com/games/1030994/big-walk-independent-games-festival-igf-ai" target="_blank" rel="noopener">[11-10] The indie game community is in disarray over AI and Big Walk</a><div class="nmeta">来源：The Verge · AI</div><div class="nsum">Some Independent Games Festival (IGF) jurors published a statement yesterday saying they would not vote for games that use generative AI in &quot;any capacity.&quot; Soon after, the developer of indie hit Big W</div></div><div class="news-item"><a href="https://arstechnica.com/google/2026/11/deepmind-reveals-gemini-robotics-2-5-and-open-safety-benchmark-asimov-jailbreak/" target="_blank" rel="noopener">[11-10] DeepMind reveals Gemini Robotics 2.5 and open safety benchmark &quot;ASIMOV-jailbreak&quot;</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Google DeepMind has revealed a new generation of the AI-powered Gemini Robotics platform. In the 2.5 release, Google says its robotic AI is getting tantalizingly close to completing real-world tasks a</div></div><div class="news-item"><a href="https://arstechnica.com/gadgets/2026/11/ukraines-fiber-optic-drones-get-squeezed-by-ai-data-center-demand/" target="_blank" rel="noopener">[11-10] Ukraine’s fiber-optic drones get squeezed by AI data center demand</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nsum">Impervious to battlefield jamming, drones physically connected to human operators by miles of fiber-optic cables have become such a common weapon of war in Ukraine that trees and fields are strewn wit</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/09/1148194/the-backlash-about-data-centers-might-really-just-be-about-electricity/" target="_blank" rel="noopener">[11-09] The backlash about data centers might really just be about electricity</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">This story originally appeared in The Algorithm, our weekly newsletter on AI. To get stories like this in your inbox first, sign up here. As voters went to the polls across the US last week, I was in </div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/09/1148182/nancy-pelosis-replacement-is-ready-to-regulate-ai/" target="_blank" rel="noopener">[11-09] Nancy Pelosi’s replacement is ready to regulate AI</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">As a California state senator, Scott Wiener authored legislation aimed at curbing the risks of advanced AI. Now, after winning a tight congressional race for former Speaker of the House Nancy Pelosi’s</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/09/1147654/innovating-with-ai-in-the-special-chemicals-industry/" target="_blank" rel="noopener">[11-09] Innovating with AI in the special chemicals industry</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">As companies look to accelerate innovation with artificial intelligence, cloud computing, and advanced modeling, the primary challenge is connecting new technologies to reliable data, scientific exper</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/06/1148090/i-watched-a-humanoid-robot-clean-my-apartment-it-felt-like-a-taste-of-the-future/" target="_blank" rel="noopener">[11-06] I watched a humanoid robot clean my apartment. It felt like a taste of the future.</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">I’m not the sort of person who typically pays for a house cleaner. I’m too frugal, and I kind of enjoy putting on a podcast and going to town on my tub with a Magic Eraser. But when I saw an X post ab</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/04/1148043/texas-was-the-new-epicenter-of-the-ai-data-center-buildout-that-might-be-kaput/" target="_blank" rel="noopener">[11-04] Texas was the new epicenter of the AI data center buildout. That might be kaput.</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">Texas is the fastest-growing data center market in the US and ground zero for Big Tech&amp;#8217;s largest AI buildouts. But the blue wave that swept the Lone Star State may jeopardize that position. Demo</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/04/1147596/securing-the-agentic-enterprise-with-data-lineage/" target="_blank" rel="noopener">[11-04] Securing the agentic enterprise with data lineage</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">A sales representative asks an AI agent for customer pricing, and the agent pulls data from multiple sources: restricted pricing systems, internal communications, and archived quotes. The output looks</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/03/1147934/reverse-game-theory-mechanism-design-ai-alignment/" target="_blank" rel="noopener">[11-03] How “reverse game theory” could keep AI agents in check</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">A new approach known as “reverse game theory” aims to control powerful AI models by designing systems that incentivize them to stick to the rules. As AI models become more capable, safety researchers </div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/02/1147932/heres-who-is-falling-in-line-for-trumps-super-intelligence-loyalty-test/" target="_blank" rel="noopener">[11-03] Here’s who is falling in line for Trump’s “Super Intelligence” loyalty test</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nsum">This story originally appeared in The Algorithm, our weekly newsletter on AI. To get stories like this in your inbox first, sign up here. At the end of September, President Trump signed an executive o</div></div></div><div class="news-group"><h3>厂商官方（40）</h3><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/build-autonomous-ai-agents-with-amazon-bedrock-and-spring-ai/" target="_blank" rel="noopener">[11-12] Build autonomous AI agents with Amazon Bedrock and Spring AI</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">Java teams have established JVM tooling, continuous integration and continuous delivery (CI/CD) pipelines, and operational patterns, yet taking AI agents from prototype to production is hard: agent fr</div></div><div class="news-item"><a href="https://openai.com/index/gilbert-tobin-sam-nickless" target="_blank" rel="noopener">[11-12] Gilbert + Tobin rethinks the business of law with AI</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">A conversation with Sam Nickless, Partner and Chief Executive Officer at Gilbert + Tobin.</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/openai-codex-on-amazon-bedrock/" target="_blank" rel="noopener">[11-11] OpenAI Codex on Amazon Bedrock</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">Developers increasingly use Codex with Amazon Bedrock to explore unfamiliar code, make changes, and handle repetitive engineering work. For platform teams, the challenge is to make those tools availab</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/semantic-diffing-of-formal-policies-with-anti-unification/" target="_blank" rel="noopener">[11-11] Semantic diffing of formal policies with anti-unification</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">When reviewing code, you start with a diff. You wouldn’t compare two 3,000-line files by eye and hope to spot every change. Formal policies can be even harder to compare because a textual diff often h</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/detecting-and-recovering-from-silent-data-corruption-on-amazon-sagemaker-hyperpod/" target="_blank" rel="noopener">[11-11] Detecting and recovering from silent data corruption on Amazon SageMaker HyperPod</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">Silent data corruption (SDC) happens when hardware, such as a GPU, returns a wrong but plausible number and raises no error. In distributed training, the wrong number can flow into the gradients and w</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/introducing-the-web-search-api-on-amazon-bedrock-agentcore/" target="_blank" rel="noopener">[11-11] Introducing the Web Search API on Amazon Bedrock AgentCore</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">AI agents and applications that answer questions about recent events, product releases, prices, or regulations need information newer than their model’s training data. Until now, Web Search on Amazon </div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/icymi-what-landed-for-ai-builders-in-october-2026/" target="_blank" rel="noopener">[11-11] ICYMI: What landed for AI builders in October 2026</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">At AWS, we believe AI builders should be able to choose the right model for every task, trust their agents in production, and see clearly what their AI workloads cost. That belief guides how we invest</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/the-attendees-guide-to-the-aws-reinvent-2026-ai-ml-track/" target="_blank" rel="noopener">[11-11] The attendee’s guide to the AWS re:Invent 2026 AI/ML track</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">From November 30th to December 4th, Amazon Web Services (AWS) will hold its annual premier learning event: re:Invent. At this event, attendees will become stronger and more proficient in various areas</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/automating-aws-agent-registry-updates-with-push-based-architecture/" target="_blank" rel="noopener">[11-11] Automating AWS Agent Registry updates with push-based architecture</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nsum">Every time a Model Context Protocol (MCP) server published in the AWS Agent Registry, a capability of Amazon Bedrock AgentCore, gains a new tool or updates its schema, the registry record must be upda</div></div><div class="news-item"><a href="https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease/" target="_blank" rel="noopener">[11-11] AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a><div class="nmeta">来源：Google DeepMind</div><div class="nsum">Predicting how DNA sequences and their variations impact specific human cell types and disease.</div></div><div class="news-item"><a href="https://openai.com/index/chatgpt-plus-for-veterans" target="_blank" rel="noopener">[11-11] ChatGPT Plus for veterans and servicemembers</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">More than 20,000 veterans and transitioning service members have claimed a free year of ChatGPT Plus. See how they use it to prepare for civilian careers.</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/ai-recycling-startups/" target="_blank" rel="noopener">[11-11] How AI Helps Recyclers Turn Mixed Waste Into Reusable Material</a><div class="nmeta">来源：NVIDIA Blog</div></div><div class="news-item"><a href="https://openai.com/index/jiostar-vijay-seshadri" target="_blank" rel="noopener">[11-11] JioStar’s chief architect on AI discovery at 500M-user scale</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">JioStar’s Vijay Seshadri explains AI discovery at 500M-user scale. Read his lessons on evals, guardrails, and taking AI into production.</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/lazare-veni-foras-reprogramming-dormant-neurons-to-backdoor-ai-agents/" target="_blank" rel="noopener">[11-10] Lazare, veni foras: Reprogramming Dormant Neurons to Backdoor AI Agents</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">Microsoft researchers have discovered &amp;#8220;Lazarus,&amp;#8221; a backdoor technique that can reprogram dormant neurons in an AI model, causing an otherwise normal AI agent to execute malicious commands </div></div><div class="news-item"><a href="https://deepmind.google/blog/gemini-4-carbon-is-now-available/" target="_blank" rel="noopener">[11-10] Gemini 4 Carbon is now available</a><div class="nmeta">来源：Google DeepMind</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/open-source-openshell-infrastructure/" target="_blank" rel="noopener">[11-10] NVIDIA Expands Open Source Commitment With OpenShell Donation and New AI Infrastructure</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">Kubernetes, the open source system that manages how applications run across thousands of AI factories, has become the foundation for AI, and the demands on it are only growing. To help meet them, NVID</div></div><div class="news-item"><a href="https://deepmind.google/blog/introducing-alphaproof-code/" target="_blank" rel="noopener">[11-10] Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a><div class="nmeta">来源：Google DeepMind</div><div class="nsum">AlphaProof Code agents wrote three million lines of proofs in Lean to verify Signal’s core encryption.</div></div><div class="news-item"><a href="https://openai.com/index/helping-caregivers-use-ai-in-everyday-life" target="_blank" rel="noopener">[11-10] Helping caregivers use AI in everyday life</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">OpenAI Academy is bringing free, hands-on ChatGPT workshops to caregivers in five U.S. cities, helping them build practical AI skills for everyday life.</div></div><div class="news-item"><a href="https://openai.com/index/introducing-businesses-chatgpt" target="_blank" rel="noopener">[11-10] Introducing Businesses in ChatGPT</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">Manage your business information, get insights about how your business shows up, and turn interest into action in ChatGPT.</div></div><div class="news-item"><a href="https://openai.com/index/closing-ai-guidance-gap-education" target="_blank" rel="noopener">[11-10] Closing the AI guidance gap in education</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">New ThinkYoung research and lessons from OpenAI’s EMEA education partnerships on supporting teachers, AI literacy, and independent learning.</div></div><div class="news-item"><a href="https://openai.com/index/singapore-airlines-travel-work" target="_blank" rel="noopener">[11-10] Singapore Airlines elevates travel &amp; work with OpenAI technology</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">Discover how Singapore Airlines uses OpenAI models and API to enhance customer support, travel discovery, and employee productivity, doubling CSAT for its Kris chatbot.</div></div><div class="news-item"><a href="https://openai.com/index/ai-effect-on-freelance-work" target="_blank" rel="noopener">[11-10] Work at the Frontier: AI’s effect on freelance work</a><div class="nmeta">来源：OpenAI News</div><div class="nsum">New research from OpenAI and Upwork finds shifting demand for freelance work, new skill combinations, and larger budgets and more hours for AI-related projects.</div></div><div class="news-item"><a href="https://deepmind.google/blog/gemini-robotics-2-5-accelerates-real-world-physical-intelligence/" target="_blank" rel="noopener">[11-09] Gemini Robotics 2.5 accelerates real-world general dexterity</a><div class="nmeta">来源：Google DeepMind</div><div class="nsum">Our most capable vision-language-action model enhances robot dexterity, reliability, and safety</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/robotics-simulation-advancements-corl/" target="_blank" rel="noopener">[11-09] Practice Makes Precise: At CoRL, NVIDIA and Partners Reveal How Robots Rehearse Delicate Work in Simulation</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">Simulation, which has long been the proving ground for robots learning to walk, roll and hop, is now helping researchers teach robots tasks that require a finer touch: aligning gears, connecting cable</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/korean-startup-investments-msit/" target="_blank" rel="noopener">[11-09] NVIDIA Announces New Planned Investments in Korean Startups at the MSIT-NVIDIA AI Startup Partnership Forum</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">Korea’s Ministry of Science and ICT and NVIDIA hosted the MSIT-NVIDIA AI Startup Partnership Forum at COEX. Representatives from the Ministry of Science and ICT and NVIDIA met with over 20 Korean star</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/korea-physical-ai-ecosystem/" target="_blank" rel="noopener">[11-09] Korea Advances Physical AI Across Industries With NVIDIA</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">Tapping into the country’s strengths in manufacturing and engineering, NVIDIA is helping advance Korea’s physical AI ecosystem. The country’s industry leaders are applying accelerated computing, AI an</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/korea-secure-agentic-ai/" target="_blank" rel="noopener">[11-09] Korea’s AI Ecosystem Advances and Secures Agentic AI With NVIDIA</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">As AI agents take on more work, they need capable open models and security that advances alongside them. Hyundai Motor Group is exploring NVIDIA NemoClaw blueprints and the NVIDIA OpenShell runtime, w</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/korea-sovereign-ai-collaboration/" target="_blank" rel="noopener">[11-09] From Chips to Skills, NVIDIA and Korea Expand Sovereign AI Collaboration</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">NVIDIA and Korea’s Ministry of Science and ICT (MSIT) are expanding their collaboration across the country’s sovereign AI ecosystem, from AI semiconductors and data center infrastructure to talent, st</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/nvidia-dynamo-korea-open-models/" target="_blank" rel="noopener">[11-09] NVIDIA Dynamo Recipes Bring Korea’s Leading Open Models to Production</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nsum">NVIDIA is releasing Dynamo-optimized deployment recipes for Korea’s leading open models: A.X K2 from SK Telecom, K-EXAONE 2.0 from LG AI Research, Solar Open 2 from Upstage and Motif-3 from Motif Tech</div></div><div class="news-item"><a href="https://deepmind.google/blog/gemini-omni-12-flash-fast-and-cost-effective-with-longer-clips/" target="_blank" rel="noopener">[11-05] Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a><div class="nmeta">来源：Google DeepMind</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/formally-verifying-agent-written-full-stack-web-apps-with-pdd-kit/" target="_blank" rel="noopener">[11-05] Formally verifying agent-written full-stack web apps with PDD Kit</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">At a glance Formal methods for everyday software. PDD Kit helps you turn your intent into a formal spec, then proves the code your agent writes for every input and uses tests where a proof can&amp;#8217;t</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/podcast/learn-the-rules-the-hacker-mindset/" target="_blank" rel="noopener">[11-03] Learn the rules: The hacker mindset</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">For some, rules pose limitations. For others, like Microsoft Research Manager Mike Walker, they’re opportunities. Walker’s fascination with rules and their role in the social order has allowed him to </div></div><div class="news-item"><a href="https://deepmind.google/blog/agentic-cheminformatics-with-google-antigravity/" target="_blank" rel="noopener">[11-03] Agentic cheminformatics with Google Antigravity</a><div class="nmeta">来源：Google DeepMind</div><div class="nsum">Learn how Google Antigravity and our Cheminformatics Skills accelerate drug discovery workflows, search compounds, and propose novel rigidified macrocycles.</div></div><div class="news-item"><a href="https://deepmind.google/blog/speeding-up-planning-decisions-with-ai/" target="_blank" rel="noopener">[10-30] Speeding up planning decisions with AI</a><div class="nmeta">来源：Google DeepMind</div><div class="nsum">Google DeepMind and UK government work together to reduce planning assessment times</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/from-synthetic-enterprise-data-evaluations-to-real-microsoft-copilot-ai-confidence/" target="_blank" rel="noopener">[10-30] From synthetic enterprise data evaluations to real Microsoft Copilot AI confidence</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">At a glance Evaluating Microsoft Copilot at enterprise scale requires test data that captures the full complexity of real organizations, yet real enterprise data contains sensitive information that ca</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/podcast/microsoft-research-focus-edition-97/" target="_blank" rel="noopener">[10-29] Microsoft Research Focus – Edition #97</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">.yt-consent-placeholder[data-video-id=&quot;k6oC-6TPAr8&quot;] { aspect-ratio: 9 / 16; max-width: 480px; margin: 24px auto 48px auto; } What&amp;#8217;s new in research? You may already be familiar with the Researc</div></div><div class="news-item"><a href="https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model/" target="_blank" rel="noopener">[10-28] Gemini 4 Carbon: Our next frontier model</a><div class="nmeta">来源：Google DeepMind</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/flint-interactive-a-language-for-creating-interactive-data-visualizations/" target="_blank" rel="noopener">[10-22] Flint-interactive: A language for creating interactive data visualizations</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">At a glance Brings rich interactivity to AI-generated charts: Flint-interactive enables agents to create data visualizations that users can explore directly through clicking, filtering, zooming, highl</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/solving-a-31-year-old-grand-challenge-in-mathematics-the-kls-conjecture/" target="_blank" rel="noopener">[10-21] Solving a 31-year-old grand challenge in mathematics – the KLS conjecture</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">Microsoft researcher and collaborator combine new mathematical ideas with human-directed AI to resolve a central problem in high-dimensional geometry and probability At a glance Fundamental scientific</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/podcast/called-to-serve-tech-research-and-positive-impact-with-chris-white/" target="_blank" rel="noopener">[10-20] Called to serve: Tech, research, and positive impact</a><div class="nmeta">来源：Microsoft Research</div><div class="nsum">In the summer of 2010, postdoc Chris White worked with a multidisciplinary team at the Defense Advanced Research Projects Agency, or DARPA, to determine if a new approach to data analysis could preven</div></div></div><div class="news-group"><h3>学术研究（8）</h3><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/11/09/bair-at-corl-2026/" target="_blank" rel="noopener">[11-09] BAIR at CoRL 2026</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">The Conference on Robot Learning (CoRL) takes place November 9–12, 2026, in Austin, Texas. BAIR faculty, postdocs and students will be presenting research at various sessions, including an Early Caree</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/07/29/cuda-to-mlx-k-search/" target="_blank" rel="noopener">[07-29] From CUDA to MLX: How K-Search Brings Decades of Kernel Expertise to Apple Silicon</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">Figure 1: CUDA-to-MLX optimization translation map. CUDA optimization knowledge can be translated into architecture-native MLX strategies rather than copied instruction-for-instruction. We face a new </div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/07/26/abbel/" target="_blank" rel="noopener">[07-26] Teaching LLMs to Update Beliefs for Efficient Long-Horizon Interaction</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">.abbel-fig { display: block; text-align: center; margin: 2.4em 0; line-height: 1.4; max-width: 100%; } .abbel-fig img { display: block; margin: 0.65em auto 0; height: auto; max-width: 100%; } /* Image</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/07/07/intelligence-is-free-now-what/" target="_blank" rel="noopener">[07-07] Intelligence is Free, Now What? Data Systems for, of, and by Agents</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">... government of the people, by the people, for the people ... &amp;mdash; Abraham Lincoln, Gettysburg Address (1863) The cost of AI is dropping rapidly. GPT-4-class capabilities cost roughly $30 per mil</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/07/01/grads-2026/" target="_blank" rel="noopener">[07-01] 2026 BAIR Graduate Showcase</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">Congratulations to the Berkeley Artificial Intelligence Research (BAIR) Lab class of 2026! This year, BAIR celebrates another remarkable group of Ph.D. graduates whose curiosity, creativity, and perse</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/05/08/adaptive-parallel-reasoning/" target="_blank" rel="noopener">[05-08] Adaptive Parallel Reasoning: The Next Paradigm in Efficient Inference Scaling</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">.apr-fig { text-align: center; margin: 1.35em 0; line-height: 1.4; } .apr-fig--wide img { display: inline-block; width: 100%; max-width: 100%; height: auto; vertical-align: middle; } .apr-fig--wide-0-</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/04/20/grasp/" target="_blank" rel="noopener">[04-20] Gradient-based Planning for World Models at Longer Horizons</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">.grasp-results-table table { font-size: 0.875rem; line-height: 1.35; width: 100%; } .grasp-results-table th, .grasp-results-table td { padding: 0.35rem 0.5rem; } /* Consistent whitespace between major</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/03/13/spex/" target="_blank" rel="noopener">[03-13] Identifying Interactions at Scale for LLMs</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nsum">--&gt; Understanding the behavior of complex machine learning systems, particularly Large Language Models (LLMs), is a critical challenge in modern artificial intelligence. Interpretability research aims</div></div></div><div class="news-group"><h3>开源生态（8）</h3><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/beyond-code-generation-a-developers-guide-to-agentic-engineering/" target="_blank" rel="noopener">[11-06] Beyond code generation: A developer’s guide to agentic engineering</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">This October, GitHub saw more than 1.2 billion commits in one week&amp;mdash;over 400% more than a year earlier. This is more commits than GitHub received in all of 2025. Chances are, you&amp;rsquo;re generat</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/how-3-java-champions-are-using-github-copilot-for-increased-productivity/" target="_blank" rel="noopener">[10-20] How 3 Java Champions are using GitHub Copilot for increased productivity</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">AI coding tools can generate code quickly, but speed alone does not solve the hardest software engineering problems. Developers still need to provide context, validate results, protect maintainability</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/how-to-continue-a-github-copilot-app-session-in-vs-code/" target="_blank" rel="noopener">[10-19] How to continue a GitHub Copilot app session in VS Code</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">The agent has finished the bulk of your change. Now you want to inspect one implementation detail, adjust a few lines by hand, and run the project locally before you ship it. But the work is sitting i</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/githubs-model-for-secret-detection-finding-more-secrets-with-less-noise/" target="_blank" rel="noopener">[10-13] GitHub’s model for secret detection: Finding more secrets with less noise</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">/* Copyright 2022 The Mona Sans Project Authors (https://github.com/github/mona-sans), with Reserved Font Name &quot;Mona&quot; This Font Software is licensed under the SIL Open Font License, Version 1.1. This </div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/github-copilot-app-for-beginners-how-to-teach-copilot-about-your-codebase/" target="_blank" rel="noopener">[10-12] GitHub Copilot app for Beginners: How to teach Copilot about your codebase</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">Context matters when you&amp;rsquo;re working with AI. Every codebase has its own house rules: how components are structured, which scripts to run, and which conventions apply to different frameworks and </div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/secret-protection-must-scale-with-software/" target="_blank" rel="noopener">[10-07] Secret protection must scale with software</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">Today, one in three pull requests on GitHub involves an AI agent. A year ago, that number was fewer than one in 10. If that pace holds, within the next two years, most of the code pushed to GitHub cou</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/reviewbench-an-open-benchmark-for-ai-code-review/" target="_blank" rel="noopener">[10-05] ReviewBench: An open benchmark for AI code review</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">Agentic code review is becoming an essential piece of how development happens. It helps you inspect pull requests, catch issues, and decide what deserves attention before code ships. But the quality o</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/ai-is-rewriting-the-developer-career-ladder-heres-how-to-stand-out/" target="_blank" rel="noopener">[10-02] AI is changing developer work. Here are three skills to strengthen.</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nsum">AI is changing how developers work and apply their skills. Writing code is still essential, but developers increasingly need to know how to direct AI, evaluate its output, communicate tradeoffs, and m</div></div></div></section>
+  <details class="rejected"><summary>附：淘汰记录（前 15 条，共 18 条）</summary><ul><li><code>microsoft/markitdown</code> — 未命中任何类目信号</li><li><code>huggingface/transformers</code> — 模型本体（全局排除）</li><li><code>sindresorhus/awesome</code> — 清单类（本类目不保留）</li><li><code>public-apis/public-apis</code> — 未命中任何类目信号</li><li><code>awesome-selfhosted/awesome-selfhosted</code> — 清单类（本类目不保留）</li><li><code>vinta/awesome-python</code> — 清单类（本类目不保留）</li><li><code>trimstray/the-book-of-secret-knowledge</code> — 未命中任何类目信号</li><li><code>avelino/awesome-go</code> — 清单类（本类目不保留）</li><li><code>521xueweihan/HelloGitHub</code> — 未命中任何类目信号</li><li><code>Hack-with-Github/Awesome-Hacking</code> — 清单类（本类目不保留）</li><li><code>microsoft/generative-ai-for-beginners</code> — 模型本体（全局排除）</li><li><code>milind-soni/OpenMausBot</code> — 未命中任何类目信号</li><li><code>DuarteSantos8/openGym</code> — 未命中任何类目信号</li><li><code>jub0t/Concat</code> — 未命中任何类目信号</li><li><code>tangency-labs/solidcraft</code> — 未命中任何类目信号</li></ul></details>
+  <footer>由 ai-git-radar 生成 · 单文件离线报告 · 数据来源 GitHub + RSS/Atom 资讯信源</footer>
+</div>
+</body>
+</html>

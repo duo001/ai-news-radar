@@ -1,0 +1,56 @@
+# 类目 4：Agent 生态——Skills / DSH / 编程智能体周边
+# 声明式扩展的样板：复制本文件改 id/topics/关键词即可新增类目，无需改代码。
+# 范围：Agent 技能（skills）、harness/运行时（DeepSeek Harness/DSH、Claude Code、
+#       Cursor 等）、规则与插件（cursor-rules、claude-code-plugin）、MCP server、
+#       智能体编排与工作流周边。与类目 1 的区别：聚焦"智能体的可复用资产与运行时"，
+#       而非面向终端用户的成品 AI 应用。
+id: agent-skills
+name: Agent 生态 · Skills / DSH
+enabled: true
+desc: Agent 技能与插件、harness/运行时（DeepSeek Harness、Claude Code、Cursor）、MCP server、规则与编排周边。
+# 严格 topic 模式：通用工具可能挂一个 claude-code/mcp 标签，单个标签不足以证明是生态资产，
+# 必须再有一个生态 topic 或在 name/desc 命中 skill/harness/dsh 等专属强词。
+strict_topic_match: true
+# 只放生态专属 topic：通用标签（mcp / ai-agent / mcp-server）非生态项目也会挂，
+# 放在这里会把大量普通 AI 工具吸进来，实测曾让本类目吞掉 29/36 个入选项目。
+# 通用 MCP server 仍可通过类目 1（热门 AI 工具）被发现。
+topics:
+  - agent-skills
+  - claude-code
+  - claude-code-plugin
+  - cursor-rules
+  - deepseek-harness
+  - dsh-plugin
+# 名称兜底关键词（走 in:name），同样只用生态专属词
+name_keywords:
+  - skill
+  - skills
+  - harness
+  - dsh
+  - claude-code
+  - cursor-rules
+# 本地二次校验：身份字段（name/desc/topics）命中才准入。
+# skill/harness/dsh 等 ASCII 词自动带词边界（不会误命中其他单词的子串）。
+core_keywords:
+  strong:
+    - skill
+    - skills
+    - harness
+    - dsh
+    - claude-code
+    - claude code
+    - cursor-rules
+    - cursor rules
+    - agent skill
+    - deepseek harness
+    - 智能体技能
+    - 技能
+  weak:
+    - plugin
+    - 插件
+    - 规则
+# 不靠 README 信号准入（身份字段足够），README 仍参与模型本体等否决型规则
+readme_signals: []
+exclude:
+  keywords: []
+card_fields: [what, ecosystem, quickstart, china_access]

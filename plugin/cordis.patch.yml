@@ -1,0 +1,3 @@
+- insert:
+    - id: ai-news-panel
+      name: '@local/ai-news-panel'

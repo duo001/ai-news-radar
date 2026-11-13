@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 资讯速递 · 2026-11-13 09:00</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --text: #1f2329; --muted: #6b7280;
+  --line: #e5e7eb; --accent: #0958d9; --chip: #f0f2f5; --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --card: #1d2026; --text: #e6e8eb; --muted: #9aa0a8;
+    --line: #2c313a; --accent: #69b1ff; --chip: #262b33; --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  line-height: 1.6; font-size: 15px;
+}
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px 60px; }
+header.hero { padding: 36px 0 18px; }
+h1 { margin: 0 0 10px; font-size: 28px; letter-spacing: .5px; }
+.meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.meta b { color: var(--text); font-weight: 600; }
+.notice {
+  margin: 14px 0 0; padding: 10px 14px; border-radius: 8px;
+  background: var(--chip); color: var(--muted); font-size: 13px;
+}
+nav.tabs {
+  position: sticky; top: 0; z-index: 10; background: var(--bg);
+  padding: 10px 0; margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+nav.tabs a {
+  text-decoration: none; color: var(--text); background: var(--card);
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+  font-size: 13px; box-shadow: var(--shadow);
+}
+nav.tabs a:hover { border-color: var(--accent); color: var(--accent); }
+nav.tabs .n { color: var(--muted); font-size: 12px; margin-left: 4px; }
+section.cat { margin-top: 30px; }
+section.cat > h2 {
+  font-size: 19px; margin: 0 0 14px; padding-bottom: 8px;
+  border-bottom: 2px solid var(--accent); display: flex; align-items: baseline; gap: 10px;
+}
+section.cat > h2 .pill {
+  font-size: 12px; font-weight: 500; color: var(--accent);
+  background: var(--chip); border-radius: 999px; padding: 2px 10px;
+}
+.empty { color: var(--muted); font-style: italic; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 14px;
+}
+.card-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.grade {
+  flex: none; width: 42px; height: 42px; border-radius: 10px; color: #fff;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-weight: 700; line-height: 1.1;
+}
+.grade .g { font-size: 17px; }
+.grade .s { font-size: 11px; opacity: .92; }
+.repo-name { font-size: 17px; font-weight: 650; }
+.repo-name a { color: var(--text); text-decoration: none; }
+.repo-name a:hover { color: var(--accent); }
+.repo-meta { color: var(--muted); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; }
+.desc { margin: 12px 0 4px; }
+.desc .zh { font-weight: 500; }
+.desc .orig { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.chip {
+  font-size: 12px; color: var(--muted); background: var(--chip);
+  border-radius: 6px; padding: 2px 8px;
+}
+.chip.good { color: #389e0d; }
+.dims { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 18px; margin: 12px 0 6px; }
+.dim { font-size: 12px; color: var(--muted); }
+.dim .bar { height: 6px; border-radius: 3px; background: var(--chip); margin-top: 4px; overflow: hidden; }
+.dim .fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.dim b { color: var(--text); font-weight: 600; }
+.free {
+  margin-top: 12px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; background: var(--chip); font-size: 13.5px;
+}
+.free h4 { margin: 0 0 8px; font-size: 13.5px; }
+.free ul { margin: 6px 0 0; padding-left: 20px; }
+.free .warn { color: #d46b08; }
+.risk-high { color: #cf1322; font-weight: 600; }
+.risk-medium { color: #d46b08; }
+.risk-low { color: #ad8b00; }
+.secondary { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+section.news { margin-top: 34px; }
+.news-group { margin-bottom: 18px; }
+.news-group h3 { font-size: 15px; margin: 0 0 8px; color: var(--accent); }
+.news-item {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 8px;
+}
+.news-item a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 14px; }
+.news-item a:hover { color: var(--accent); }
+.news-item .nmeta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.news-item .nsum { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+.news-fail { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+details.rejected { margin-top: 34px; }
+details.rejected summary { cursor: pointer; font-size: 15px; font-weight: 600; }
+details.rejected ul { font-size: 13px; color: var(--muted); }
+footer { margin-top: 40px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1>📰 AI 资讯速递</h1>
+    <div class="meta">
+      <span>生成时间 <b>2026-11-13 09:00</b></span>
+      <span>资讯条目 <b>42</b></span>
+      <span>失败信源 <b>0</b></span>
+    </div>
+    <div class="notice">资讯标题翻译：42 条英文标题已全部翻译，另有 0 条原文即中文。</div>
+  </header>
+  <section class="news" id="sec-news"><h2>📰 AI 资讯<span class="pill">42 条 · RSS/Atom 信源</span></h2><div class="news-group"><h3>个人与社区（6）</h3><div class="news-item"><a href="https://simonwillison.net/2026/Nov/12/llm-gemini/" target="_blank" rel="noopener">[11-12] llm-gemini 0.37 发布</a><div class="nmeta">来源：Simon Willison</div><div class="nmeta">原标题：llm-gemini 0.37</div><div class="nsum">Google 今天发布 Gemini 4 系列中成本最低的成员 Gemini 4 Hydrogen，llm-gemini 插件随之更新到 0.37，其价格与更大号模型已相差不远。</div></div><div class="news-item"><a href="https://latent.space/p/ainews-d-day-decision-models-day/" target="_blank" rel="noopener">[11-12] 【AI 新闻】决策模型日（D-Day）</a><div class="nmeta">来源：Latent Space</div><div class="nmeta">原标题：[AINews] D-Day (Decision Models Day)</div><div class="nsum">本期讨论一个会自建临时目录、拒绝删除目录外目标的封装工具；评论者在「智能体文件系统权力过大」与「智能体本就该有此能力」之间分歧明显。</div></div><div class="news-item"><a href="https://latent.space/p/jev-revolution/" target="_blank" rel="noopener">[11-12] Jev 革命：工程师们已经在用 System One 模型构建什么</a><div class="nmeta">来源：Latent Space</div><div class="nmeta">原标题：The Jev Revolution: What Engineers Are Already Building with System One Models</div><div class="nsum">在 AI Engineer Code 峰会上，主题是 system one 模型——返回结构化选择、分数或概率的非生成式模型，它们通常更快、更便宜。</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/gemini-decisions-api/" target="_blank" rel="noopener">[11-11] Gemini Decisions API</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">谷歌携「Gemini Decision 1」加入 Jev 与 OpenAI 所在的决策模型赛道。这个新模型 API 与 Jev 几乎一致，支持相同的三类问题。</div></div><div class="news-item"><a href="https://simonwillison.net/2026/Nov/11/aws-emulator/" target="_blank" rel="noopener">[11-11] aws-emulator</a><div class="nmeta">来源：Simon Willison</div><div class="nsum">AWS 推出的官方模拟器，可在本地克隆其众多服务来跑测试，无需为此申请付费 API key，用 Rust 编写。</div></div><div class="news-item"><a href="https://latent.space/p/ainews-mercor-750m-series-d-at-20b-valuation-3b-run-rate/" target="_blank" rel="noopener">[11-11] 【AI 新闻】Mercor 完成 7.5 亿美元 D 轮融资，估值 200 亿美元，年化收入 30 亿</a><div class="nmeta">来源：Latent Space</div><div class="nmeta">原标题：[AINews] Mercor $750m Series D at $20B valuation, $3B run rate</div><div class="nsum">如今把一轮融资做成头条的通常门槛是百亿美元估值的「十角兽」。去年 Mercor C 轮估值达 100 亿美元时收入还不到 5 亿，如今增长迅猛。</div></div></div><div class="news-group"><h3>开源生态（3）</h3><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/build-once-run-on-any-agent-a-practical-guide-to-agent-skills/" target="_blank" rel="noopener">[11-12] 一次构建，任意智能体运行：agent skills 实用指南</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nmeta">原标题：Build once, run on any agent: A practical guide to agent skills</div><div class="nsum">这周你有多少次向智能体重复解释同一个任务？又有多少次向深谙机构内部知识的同事请教某个具体问题的解法？本文讲如何用可复用的 agent skills 沉淀这些知识。</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/beyond-code-generation-a-developers-guide-to-agentic-engineering/" target="_blank" rel="noopener">[11-06] 超越代码生成：智能体工程开发者指南</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nmeta">原标题：Beyond code generation: A developer’s guide to agentic engineering</div><div class="nsum">今年 10 月 GitHub 单周 commit 超过 12 亿次，同比增长超 400%，比 GitHub 在整个 2025 年收到的 commit 还多，智能体工程正在改变开发方式。</div></div><div class="news-item"><a href="https://github.blog/ai-and-ml/github-copilot/how-3-java-champions-are-using-github-copilot-for-increased-productivity/" target="_blank" rel="noopener">[10-20] 三位 Java 冠军如何用 GitHub Copilot 提升生产力</a><div class="nmeta">来源：GitHub Blog · AI &amp; ML</div><div class="nmeta">原标题：How 3 Java Champions are using GitHub Copilot for increased productivity</div><div class="nsum">AI 编程工具能快速生成代码，但光有速度解决不了最难的软件工程问题；开发者仍需提供上下文、验证结果并保护可维护性。</div></div></div><div class="news-group"><h3>科技媒体（15）</h3><div class="news-item"><a href="https://techcrunch.com/2026/11/12/democrats-launch-nvidia-investigation-write-scathing-letter-on-huangs-scheme-with-trump/" target="_blank" rel="noopener">[11-12] 民主党人发起对英伟达的调查，就黄仁勋与特朗普的「密谋」发出措辞严厉的信函</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nmeta">原标题：Democrats launch Nvidia investigation, write scathing letter on Huang’s ‘scheme’ with Trump</div><div class="nsum">这项针对英伟达在华销售及其与特朗普政府往来的国会调查，是间谍丑闻曝光以来的第二项调查。</div></div><div class="news-item"><a href="https://arstechnica.com/ai/2026/11/faa-expands-ai-advice-to-manage-air-traffic-congestion-across-entire-us-airspace/" target="_blank" rel="noopener">[11-12] 美国联邦航空局扩大 AI 咨询工具使用范围，用于管理全美空域拥堵</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nmeta">原标题：FAA expands AI advice to manage air traffic congestion across entire US airspace</div><div class="nsum">美国政府扩大了一款 AI 工具的使用，该工具为空管人员提供建议，协助管理整个国家空域系统的空中交通。</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/12/muse-can-now-place-calls-to-u-s-businesses-if-you-pay/" target="_blank" rel="noopener">[11-12] Muse 现已能拨打美国企业电话——但需要付费</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nmeta">原标题：Muse can now place calls to US businesses — if you pay</div><div class="nsum">Muse 的 AI 现在可以向美国企业拨出电话，但这项功能并非免费。</div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1032505/google-search-ai-mode-gemini-4-hydrogen" target="_blank" rel="noopener">[11-12] 谷歌新 Gemini 模型更擅长理解复杂问题</a><div class="nmeta">来源：The Verge · AI</div><div class="nmeta">原标题：Google’s new Gemini model is better at understanding complicated questions</div><div class="nsum">谷歌称新的 Gemini 4 Hydrogen 模型能对复杂问题给出更有用的回答，包括「包含多个部分、含难以理解的错别字或高度具体的请求」。</div></div><div class="news-item"><a href="https://techcrunch.com/2026/11/12/nvidia-ceo-jensen-huangs-affair-with-alleged-chinese-spy-a-timeline/" target="_blank" rel="noopener">[11-12] 黄仁勋丑闻持续发酵：时间线梳理</a><div class="nmeta">来源：TechCrunch · AI</div><div class="nmeta">原标题：The unfolding Jensen Huang scandal: a timeline</div><div class="nsum">黄仁勋因婚外情辞去英伟达职务，在美国与中国竞相发展最先进 AI 基础设施之际，此事可能对国家安全产生影响。</div></div><div class="news-item"><a href="https://the-decoder.com/claude-meetings-lets-anthropics-ai-join-your-video-calls/" target="_blank" rel="noopener">[11-12] Claude Meetings 让 Anthropic 的 AI 加入你的视频会议</a><div class="nmeta">来源：The Decoder</div><div class="nmeta">原标题：Claude Meetings lets Anthropic&#x27;s AI join your video calls</div><div class="nsum">Anthropic 把 Claude 直接接入视频通话。Claude Meetings 可加入 Google Meet 会议，实时创建文档、白板和会议纪要，该功能面向团队版推出测试。</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/12/1148483/nvidia-chip-tracking/" target="_blank" rel="noopener">[11-12] 英伟达私下确认可追踪芯片以打击走私，尽管业内公开质疑可行性</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nmeta">原标题：Nvidia privately confirmed it could track chips to fight smuggling, even as industry publicly questioned feasibility</div><div class="nsum">英伟达代表告诉伊利诺伊州议员 Bill Foster，落实《芯片安全法案》要求的反走私措施在技术上是可行的。</div></div><div class="news-item"><a href="https://arstechnica.com/gadgets/2026/11/ars-live-can-the-cloud-survive-drone-strikes-on-data-centers/" target="_blank" rel="noopener">[11-12] Ars 现场：数据中心遭无人机袭击对现代云生活意味着什么</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nmeta">原标题：Ars Live: What drone attacks on data centers mean for modern life in the cloud</div><div class="nsum">今年无人机和导弹袭击对东欧与中东的数据中心造成了前所未有的破坏，扰乱了数百万人的云服务。</div></div><div class="news-item"><a href="https://the-decoder.com/googles-gemini-4-hydrogen-outscores-the-bigger-argon-just-four-weeks-after-its-launch/" target="_blank" rel="noopener">[11-12] 谷歌 Gemini 4 Hydrogen 发布仅四周，跑分即超越更大的 Argon</a><div class="nmeta">来源：The Decoder</div><div class="nmeta">原标题：Google&#x27;s Gemini 4 Hydrogen outscores the bigger Argon just four weeks after its launch</div><div class="nsum">Gemini 4 Hydrogen 取代了 Flash 系列，而基准测试显示它可能让更贵的 Argon 也变得多余；在独立的 Artificial Analysis 智能指数上表现抢眼。</div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1032125/ai-agents-maya-site-archeology-discovery" target="_blank" rel="noopener">[11-12] 不，AI 智能体并没有发现一处此前未知的玛雅遗址</a><div class="nmeta">来源：The Verge · AI</div><div class="nmeta">原标题：No, AI agents did not discover a previously unknown Maya site</div><div class="nsum">谷歌研究员 Pietro Miotti 本周早些时候声称带领一队 AI 智能体在墨西哥发现了一处可能未被记录的玛雅遗址——但问题是该遗址早已为人所知。</div></div><div class="news-item"><a href="https://arstechnica.com/google/2026/11/google-rolls-out-gemini-4-hydrogen-finally-replacing-3-8-flash/" target="_blank" rel="noopener">[11-12] 谷歌推出 Gemini 4 Hydrogen，终于取代 3.8 Flash</a><div class="nmeta">来源：Ars Technica · AI</div><div class="nmeta">原标题：Google rolls out Gemini 4 Hydrogen, finally replacing 3.8 Flash</div><div class="nsum">谷歌延续其元素命名法推出 Gemini 4 Hydrogen。这些名字不如早期 Pro/Flash 直观，但其定位很明确：接替 Flash。</div></div><div class="news-item"><a href="https://www.theverge.com/ai-artificial-intelligence/1032126/alex-baby-you-were-recorded-on-video" target="_blank" rel="noopener">[11-12] 哦，Palantir 现在也自称「进步派」了？</a><div class="nmeta">来源：The Verge · AI</div><div class="nmeta">原标题：Oh, Palantir is ‘progressive’ now, is it?</div><div class="nsum">作者评论 Palantir  CEO Alex Karp 试图重新转向左翼的举动，以及上周选举结果带来的政治背景。</div></div><div class="news-item"><a href="https://the-decoder.com/openais-data-suggests-that-frontier-models-are-hiding-their-thoughts-because-developers-optimize-for-capability-and-compute/" target="_blank" rel="noopener">[11-12] OpenAI 数据表明：前沿模型正在隐藏自己的思考，因为开发者一味优化能力与算力</a><div class="nmeta">来源：The Decoder</div><div class="nmeta">原标题：OpenAI’s data suggests that frontier models are hiding their thoughts because developers optimize for capability and compute</div><div class="nsum">OpenAI 安全团队系统研究了为何 GPT-6 Astra 等前沿模型的思维链越来越多地逃避监督，发现有四个训练步骤导致了这种退化。</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/09/1148194/the-backlash-about-data-centers-might-really-just-be-about-electricity/" target="_blank" rel="noopener">[11-09] 对数据中心的抵制，可能本质上只是电力之争</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nmeta">原标题：The backlash about data centers might really just be about electricity</div><div class="nsum">本文出自每周 AI 通讯 The Algorithm。随着美国各地选民去投票，数据中心扩张与电力消耗的矛盾日益凸显。</div></div><div class="news-item"><a href="https://www.technologyreview.com/2026/11/09/1148182/nancy-pelosis-replacement-is-ready-to-regulate-ai/" target="_blank" rel="noopener">[11-09] 南希·佩洛西的继任者已准备好监管 AI</a><div class="nmeta">来源：MIT Technology Review · AI</div><div class="nmeta">原标题：Nancy Pelosi’s replacement is ready to regulate AI</div><div class="nsum">担任加州州参议员期间，Scott Wiener 起草了旨在遏制先进 AI 风险的立法；在一场势均力敌的国会选举中胜出后，他将进入联邦层面推进 AI 监管。</div></div></div><div class="news-group"><h3>厂商官方（15）</h3><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/deploy-frontier-ai-models-on-aws-trainium-with-sglang-neuron/" target="_blank" rel="noopener">[11-12] 用 SGLang-Neuron 在 AWS Trainium 上部署前沿 AI 模型</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nmeta">原标题：Deploy frontier AI models on AWS Trainium with SGLang-Neuron</div><div class="nsum">亚马逊宣布 SGLang-Neuron 正式可用，可通过 AWS 深度学习容器访问，由 RadixArk 与 Annapurna  Labs 合作发布。</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/how-natera-designed-an-agentic-ai-system-for-lab-ops-with-amazon-bedrock-agentcore/" target="_blank" rel="noopener">[11-12] Natera 如何用 Amazon Bedrock AgentCore 设计实验室运营的智能体 AI 系统</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nmeta">原标题：How Natera designed an agentic AI system for lab ops with Amazon Bedrock AgentCore</div><div class="nsum">在无创 DNA 产前检测（cfDNA）领先企业 Natera，保持实验室仪器持续运转至关重要，因为设备停机会打断样本处理流程。本文介绍其智能体系统设计。</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/podcast/microsoft-research-focus-edition-98/" target="_blank" rel="noopener">[11-12] 微软研究院焦点 · 第 98 期</a><div class="nmeta">来源：Microsoft Research</div><div class="nmeta">原标题：Microsoft Research Focus – Edition #98</div><div class="nsum">本期 Research Focus 通讯中，主持人 Anson Ho 分享微软研究院的一些最新进展。</div></div><div class="news-item"><a href="https://aws.amazon.com/blogs/machine-learning/four-amazon-bedrock-inference-choices-that-affect-cost/" target="_blank" rel="noopener">[11-12] 影响成本的四个 Amazon Bedrock 推理选择</a><div class="nmeta">来源：AWS Machine Learning Blog</div><div class="nmeta">原标题：Four Amazon Bedrock inference choices that affect cost</div><div class="nsum">即使调优了提示词和应用逻辑，Bedrock 推理账单仍可能持续上涨；请求层面的选择依然会改变服务处理的 token 数量与适用费率。</div></div><div class="news-item"><a href="https://openai.com/business/customer-stories/amplitude" target="_blank" rel="noopener">[11-12] Amplitude 如何借助 OpenAI 在 1–2 天内交付产品改进</a><div class="nmeta">来源：OpenAI News</div><div class="nmeta">原标题：How Amplitude ships product improvements in 1–2 days with OpenAI</div><div class="nsum">Amplitude 主要基于 OpenAI 模型打造的主动式产品智能体 Wave，能判断该做什么、帮助团队用编程智能体交付变更，并衡量其影响。</div></div><div class="news-item"><a href="https://deepmind.google/blog/introducing-gemini-4-hydrogen/" target="_blank" rel="noopener">[11-12] 重磅推出 Gemini 4 Hydrogen</a><div class="nmeta">来源：Google DeepMind</div><div class="nmeta">原标题：Introducing Gemini 4 Hydrogen</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/geforce-now-thursday-warhammer-dawn-of-war-iv-coming/" target="_blank" rel="noopener">[11-12] 云端新曙光：《战锤 40K：战争黎明 IV》将登陆 GeForce NOW</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nmeta">原标题：A New Dawn in the Cloud: ‘Warhammer 40,000: Dawn of War IV’ Is Coming to GeForce NOW</div><div class="nsum">本期 GFN 周四，《战锤 40000：战争黎明 IV》将登陆 GeForce NOW，玩家可通过云游戏体验 Kronus 之战。</div></div><div class="news-item"><a href="https://openai.com/business/customer-stories/gondola" target="_blank" rel="noopener">[11-12] Gondola 借助 Codex 提升开发能力，营收翻倍</a><div class="nmeta">来源：OpenAI News</div><div class="nmeta">原标题：Gondola doubles revenue as its team builds more with Codex</div><div class="nsum">Gondola 帮助创作者获得署名与工作机会，Codex 使其首席工程师产出提升 50%，ChatGPT 则简化了日常工作。</div></div><div class="news-item"><a href="https://openai.com/business/customer-stories/holidays-extras-codex" target="_blank" rel="noopener">[11-12] Holiday Extras 正在重新思考能用 Codex 构建什么</a><div class="nmeta">来源：OpenAI News</div><div class="nmeta">原标题：Holiday Extras is rethinking what it can build with Codex</div><div class="nsum">借助 Codex，Holiday Extras 把客户专业知识转化为更好的应用、更高的预订转化率和新的增长可能。</div></div><div class="news-item"><a href="https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease/" target="_blank" rel="noopener">[11-11] AlphaGenome 2：解读细胞如何读取 DNA，以更好地理解疾病</a><div class="nmeta">来源：Google DeepMind</div><div class="nmeta">原标题：AlphaGenome 2: Deciphering how cells read DNA to better understand disease</div><div class="nsum">预测 DNA 序列及其变异如何影响特定人类细胞类型与疾病。</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/ai-recycling-startups/" target="_blank" rel="noopener">[11-11] AI 如何帮助回收者把混合废料变成可再利用材料</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nmeta">原标题：How AI Helps Recyclers Turn Mixed Waste Into Reusable Material</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/lazare-veni-foras-reprogramming-dormant-neurons-to-backdoor-ai-agents/" target="_blank" rel="noopener">[11-10] Lazare, veni foras：重编程休眠神经元以给 AI 智能体植入后门</a><div class="nmeta">来源：Microsoft Research</div><div class="nmeta">原标题：Lazare, veni foras: Reprogramming Dormant Neurons to Backdoor AI Agents</div><div class="nsum">微软研究员发现名为「Lazarus」的后门技术，能重编程 AI 模型中的休眠神经元，使原本正常的 AI 智能体执行恶意指令。</div></div><div class="news-item"><a href="https://deepmind.google/blog/gemini-4-carbon-is-now-available/" target="_blank" rel="noopener">[11-10] Gemini 4 Carbon 现已可用</a><div class="nmeta">来源：Google DeepMind</div><div class="nmeta">原标题：Gemini 4 Carbon is now available</div></div><div class="news-item"><a href="https://blogs.nvidia.com/blog/open-source-openshell-infrastructure/" target="_blank" rel="noopener">[11-10] 英伟达以 OpenShell 贡献和新 AI 基础设施扩大开源承诺</a><div class="nmeta">来源：NVIDIA Blog</div><div class="nmeta">原标题：NVIDIA Expands Open Source Commitment With OpenShell Contribution and New AI Infrastructure</div><div class="nsum">管理应用如何在成千上万座 AI 工厂中运行的开源系统 Kubernetes，已成为 AI 的基石，而它面临的需求还在不断增长。</div></div><div class="news-item"><a href="https://www.microsoft.com/en-us/research/blog/formally-verifying-agent-written-full-stack-web-apps-with-pdd-kit/" target="_blank" rel="noopener">[11-05] 用 PDD Kit 对智能体编写的全栈 Web 应用做形式化验证</a><div class="nmeta">来源：Microsoft Research</div><div class="nmeta">原标题：Formally verifying agent-written full-stack web apps with PDD Kit</div><div class="nsum">named_account(email, username) 能指明一次登录对应的账户：提供邮箱时取 customers 表对应行，否则按用户名取 admins 表行。PDD Kit 把意图转为形式化规约并证明代码正确性。</div></div></div><div class="news-group"><h3>学术研究（3）</h3><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/11/09/bair-at-corl-2026/" target="_blank" rel="noopener">[11-09] BAIR 亮相 CoRL 2026</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nmeta">原标题：BAIR at CoRL 2026</div><div class="nsum">机器人学习会议（CoRL）于 2026 年 11 月 9–12 日在得州奥斯汀举行，BAIR 的教授、博士后和学生将在多个环节展示研究，包括早期职业环节。</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/07/29/cuda-to-mlx-k-search/" target="_blank" rel="noopener">[07-29] 从 CUDA 到 MLX：K-Search 如何把数十年内核专长带到 Apple Silicon</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nmeta">原标题：From CUDA to MLX: How K-Search Brings Decades of Kernel Expertise to Apple Silicon</div><div class="nsum">CUDA 到 MLX 的优化翻译图表明，CUDA 优化知识可以转化为贴合架构的 MLX 原生策略，而不是逐条照搬指令。</div></div><div class="news-item"><a href="http://bair.berkeley.edu/blog/2026/07/26/abbel/" target="_blank" rel="noopener">[07-26] 教 LLM 更新信念，以实现高效的长程交互</a><div class="nmeta">来源：Berkeley AI Research (BAIR)</div><div class="nmeta">原标题：Teaching LLMs to Update Beliefs for Efficient Long-Horizon Interaction</div><div class="nsum">ABBEL 与传统递归摘要的对比：用「信念」替代完整交互历史作为智能体的工作上下文，信念分级机制提升了长程交互效率。</div></div></div></section>
+  <footer>由 ai-git-radar 生成 · 单文件离线报告 · 数据来源 RSS/Atom 资讯信源（零密钥）</footer>
+</div>
+</body>
+</html>

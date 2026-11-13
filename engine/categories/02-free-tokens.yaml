@@ -1,0 +1,63 @@
+# 类目 2：免费 / 优惠 token 项目
+# GitHub 没有现成 topic，本类目主要靠 README/desc 正则信号识别（见 detectors.py）。
+# 范围：免费额度 + 充值优惠/折扣/赠送/限时活动 + 聚合网关 + key 池/镜像 + 政策合集清单。
+id: free-tokens
+name: 免费与优惠 token 项目
+enabled: true
+desc: 免费 API 额度、充值优惠与折扣活动、聚合网关、key 池/镜像、厂商 free program 合集与导航清单。
+# 这类项目 topic 很杂，topic 只做粗捞，真正入选靠 readme_signals
+topics:
+  - free-api
+  - openai-api
+  - llm
+  - api-gateway
+  - awesome
+  - resources
+  - llm-api
+  - openai
+  - api-proxy
+  - ai-api
+  - free-llm
+name_keywords:
+  - free-api
+  - one-api
+  - new-api
+  - api-gateway
+  - free
+  - relay
+  - openrouter
+  - litellm
+  - free-llm
+  - api-key
+# 粗捞后必须命中下列 README/desc 信号之一才入选（detectors.detect_token_offer）
+# 分两组：免费额度信号 + 优惠活动信号，任一命中即可
+readme_signals:
+  # ---- 免费额度 ----
+  - 'free[ -]?tier'
+  - 'free credits?'
+  - 'free api key'
+  - '免费额度'
+  - '免费 ?api'
+  - '白嫖'
+  - '赠送.{0,6}(token|额度|credit)'
+  - '聚合.{0,6}(api|网关|模型)'
+  - 'api ?key.{0,10}(池|pool|分享|共享)'
+  - 'free program'
+  - 'quota'
+  - 'relay'
+  - 'one-api|new-api|litellm|openrouter'
+  # ---- 优惠活动 ----
+  - 'promo(tion)?[ code]*'
+  - 'discount|coupon|%\s*off'
+  - 'bonus credits?|double credits?|extra credits?'
+  - 'rebate|cashback|返现|返利'
+  - '优惠券?|优惠活动|促销|限时(优惠|免费|折扣|活动)'
+  - '首充|充值.{0,8}(赠送|返|送)|充\s*\d+\s*送'
+  - 'black friday|黑五|cyber monday|周年庆|新年(优惠|活动)|new year deal'
+  - 'deal[s]?\s+alert|limited[- ]time offer'
+# 本类目特有：保留 awesome/清单类项目（其他类目会排除清单）
+keep_lists: true
+exclude:
+  keywords:
+    - 'paid only'
+card_fields: [offer_type, quota, promo, signup_barrier, china_access, last_verified, risk]

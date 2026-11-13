@@ -1,0 +1,151 @@
+---
+name: ai-git-radar
+version: 0.7.0
+description: AI 资讯雷达。主力能力是并发聚合 14 个零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走本地翻译流水线，按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板与信源可视化维护，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
+---
+
+# AI 资讯雷达（ai-git-radar）
+
+## 它做什么
+
+**v0.6 起主力是 RSS/Atom 资讯**：并发拉取一批零密钥 AI 资讯信源，清洗、分组、套用中文翻译，产出**可直接浏览器打开或转发的 HTML + Markdown + JSON 三份资讯速递**。相比封存的 GitHub 项目拉取（匿名受限流影响、单轮常需数分钟），资讯采集 8 路并发约 20 秒完成，零 API 额度。
+
+GitHub 项目扫描能力**封存但保留可用**（`run` 子命令，下文标 legacy），需要时仍能跑四类目分类与六维评分。
+
+**四个内置类目**（`categories/*.yaml`，声明式，可自行增删）：
+1. `ai-tools` 热门 AI 工具——应用层：Agent、RAG、MCP、编程助手、生图音视频、工作流
+2. `free-tokens` 免费与优惠 token 项目——免费额度 + 充值优惠/折扣/限时活动 + 聚合网关 + key 池/镜像 + 资源清单
+3. `ai-tech` 最近 AI 技术——近 120 天新项目，新协议/新范式（MCP/A2A/computer use/多模态 agent 等）
+4. `agent-skills` Agent 生态 · Skills / DSH——Agent 技能包、harness/运行时（DeepSeek Harness、Claude Code、Cursor）、规则与插件（严格 topic 模式，见下）
+
+**明确不包括**：AI 模型本体开发。全局硬排除权重仓、训练/推理引擎、模型定义/训练框架（如 transformers）、纯论文复现（规则在 `categories/_global.yaml`，应用层框架如 dify/langflow/ollama 不在排除列）。
+
+## 执行契约（Agent 按此操作）
+
+所有命令在 `scripts/` 下执行，仅依赖 `requests` + `pyyaml`，Python 3.8+。
+
+```bash
+# ===== 主力：资讯采集与翻译（零 GitHub 额度）=====
+python3 radar.py doctor                      # 环境自检：网络通路、信源/缓存、GitHub 类目
+python3 radar.py news                        # ★ 并发拉取全部启用信源，出 md+html+json 三份并套用中文翻译
+python3 radar.py news --per-source 5         # 每个信源取 5 条（默认 8）
+python3 radar.py news --workers 4            # 并发数（默认 8，1 为串行；实测 14 源约 20 秒）
+python3 radar.py news --only 学术研究         # 按 feeds.json 里的 id 或 group 过滤
+python3 radar.py news --offline              # 只用 data/cache/feeds 缓存，不发网络请求
+python3 radar.py news --out data/news.md     # 额外再写一份指定路径的资讯 Markdown
+
+# 资讯中文翻译流水线（标题 + 摘要，按文章链接建库）
+python3 radar.py translate --news --coverage # 看资讯标题翻译覆盖率（已译/待译/原文即中文）
+python3 radar.py translate --news --todo     # 导出待译清单 data/todo_news_translate.json
+#   Agent 逐条填 zh_title（必填）和 zh_summary（可选，空摘要可留空），然后：
+python3 radar.py translate --news --apply    # 合并进 news_translations.json（已译不覆盖）并重渲染
+
+# ===== 已封存 legacy：GitHub 项目扫描（代码保留可用）=====
+python3 radar.py categories                  # 查看已注册 GitHub 类目与查询数
+python3 radar.py run --quick                 # 只抓 trending，零搜索额度
+python3 radar.py run                         # trending + Search 全量，默认深度分析前 50
+python3 radar.py run --only free-tokens      # 只跑某类目
+python3 radar.py run --offline               # 只用 data/cache，不发网络请求
+python3 radar.py translate --todo            # 仓库简介翻译（不带 --news 的旧通道，按 owner/repo 建库）
+python3 radar.py render                      # 用最新 GitHub run 数据+翻译库重渲染
+```
+
+### 资讯产物（主力，写到 `data/`）
+
+每次 `news` 同时产出三份同一数据的文件：
+
+- `news-时间戳.html`——**自包含单文件**（内联 CSS、零外部资源、零 JS），按 5 个分组分区、来源/日期/中文标题+原标题+中文摘要、失败信源标注、深浅色自适应，可直接双击打开或转发
+- `news-时间戳.md`——Markdown 版，方便贴飞书/公众号/知识星球
+- `news-时间戳.json`——结构化数据（`news`/`news_failures`/`news_translations`）
+- 翻译资产 `data/news_translations.json`（按文章链接建 key，跨天复用，越用越全）；示例固化为 `data/sample-news.{md,html,json}`
+- 信源配置 `data/sources/feeds.json`，feed 原始 XML 缓存 `data/cache/feeds/`（3 小时 TTL，离线回退）
+
+### GitHub 产物（legacy）
+
+`run` 仍产出 `report-时间戳.{html,md}` 与 `run-时间戳.json`（含 `news`/`news_failures`），仓库翻译在 `data/translations.json`，示例为 `data/sample-report.*`/`sample-run.json`。两份 GitHub 报告共用 `report.PRIORITY` 主归属规则，分类/排序/口径一致。
+
+**长图导出（可选）**：`tools/screenshot.py` 调 `tools/lightpanda`（轻量无头浏览器单二进制，
+无系统依赖）把 HTML 报告截成 1920 宽全页 PNG，默认截最新报告，`--port` 指定临时服务端口。
+需要给用户图片产物或归档截图时用它；纯文本交付不需要。
+
+### 通路与额度（重要）
+
+- **无 token（默认）**：trending、仓库详情、README 走 github.com 网页 + raw.githubusercontent.com，**零额度**；Search API 匿名限 10 次/分钟，脚本自动每条间隔 8 秒（缓存命中不等待）。
+- **有 token**：自动从 `GH_TOKEN/GITHUB_TOKEN/GITHUB_PAT` 环境变量 → `config.json` → gh CLI 配置发现，走 REST API，搜索 30 次/分钟，详情额度 5000/小时。
+- **额度预检与整轮降级**：深度分析前查 `/rate_limit`，匿名 core 剩余不足（候选数+5）时整轮直接走网页/raw，不把时间浪费在注定 403 的 API 重试上；运行中撞限流立即降级（不 sleep 重试）。网页抓取同仓进程内只发一次请求。
+- 所有网络结果缓存到 `data/cache/`（trending 3h、search 6h、repo/readme 24h），调试不重复请求。
+
+### 候选截断与去重
+
+- **分层配额截断**（`_stratified_select`）：每个类目先按搜索来源保底 `ceil(top/类目数)` 个名额，再按热度全局补齐。否则全局按星数取 top-N 会让老明星项目挤掉 `ai-tech` 的新项目（曾导致该 tab 为 0）。
+- **主类目归属**：一个项目只进一个 tab，优先级 `free-tokens > agent-skills > ai-tech > ai-tools`（免费/优惠最稀缺，其次生态资产）；多类目命中在卡片注明"同时涉及"，信息不丢但不重复占榜。该优先级是 `report.py` 的模块常量 `PRIORITY`，Markdown 与 HTML 共用。
+- **星数真值保护**：网页兜底的星数选择器可能失效给 0，合并详情时空值/0 不允许覆盖 search/trending 的真值，防止高星项目被"星数<30"误淘汰。
+- **条数控制**：`--top N` 默认 50（早期 35），分层配额保证每个类目都有名额；想更多直接调大，配 token 走 API 时成本主要是时间，匿名网页通路下每仓约 20 秒。
+
+### 中文翻译流水线（v0.3 新增）
+
+脚本本身不调翻译 API（不引入额外密钥），翻译由 Agent/人完成，本地翻译库持久化：
+
+1. `run` 后 `translate --todo`：把英文简介抽成 `data/todo_translate.json`，原文即中文、空简介自动跳过
+2. Agent 逐条填 `zh` 字段（可只填一部分，空译不阻塞）
+3. `translate --apply`：合并进 `data/translations.json`，**已存在的精译永不覆盖**，并自动重渲染报告
+4. 报告卡片变为「中文简介 + 缩进英文原文」；报告头显示翻译覆盖率
+5. 翻译库按 `owner/repo` 小写做 key，跨天复用，越用越全；`render` 可在不重新抓取时刷新报告
+
+### AI 资讯信源与翻译（v0.6 主力，`scripts/feeds.py` + `i18n.py`）
+
+参考 AIHOT 的信源清单，只接**零密钥**的 RSS 2.0 / Atom，不做需要付费 key 的 X 搜索、公众号、网页选择器等类型。配置在 `data/sources/feeds.json`（纯数据，不改代码即可加源）：
+
+- 每条信源字段：`id/name/url/kind(rss|atom)/group/tags/enabled`，停用源保留配置并写 `disabled_reason`
+- 5 个分组：厂商官方、开源生态、学术研究、科技媒体、个人与社区；当前 14 启用 / 4 停用（Google Research、HuggingFace、Mistral、Import AI 在本网络超时，恢复后把 `enabled` 改回 true）
+- **加一个源**：在 `sources` 数组追加一条，`kind` 按 feed 类型填 rss 或 atom，`doctor` 会自动纳入体检和重复 id 检查
+- 采集特性：纯标准库（urllib + xml.etree + ThreadPoolExecutor）零新依赖；**默认 8 路并发**（`--workers 1` 退回串行），单源容错（一个挂只记进 `news_failures` 不影响其他），网络失败自动回退 `data/cache/feeds/` 缓存（过期也用，保证离线出报告）；自动处理强制 gzip 压缩（见 references 第 18 条）；每源默认取前 8 条，全部按时间倒序
+- **摘要清洗**：先整块移除 `<style>/<script>` 与 HTML/CSS 注释，再去标签（实测 GitHub Blog 的字体版权、MS Research 的 `.yt-consent` 样式会在去标签后变成文本噪声，见 references 第 20 条）；正文中合法的 `{...}` 代码片段不误伤
+- **资讯翻译流水线**（独立于仓库翻译，按文章 `link` 建 key，存 `data/news_translations.json`）：`translate --news --todo` 只抽英文标题（原文即中文自动跳过）→ Agent 填 `zh_title`/`zh_summary` → `--news --apply` 合并（已存在永不覆盖）并重渲染；报告显示中文标题+缩进原标题+中文摘要，报告头显示覆盖率。示例 `sample-news.*` 为 42 条 100% 中文化批次
+
+### 工作台形态：@local/ai-news-panel 插件
+
+同仓兄弟目录 `../ai-news-panel` 是 DSH 工作台插件，把本引擎包成侧边栏常驻面板（资讯浏览 + 信源可视化增删启停 + 一键在线刷新），引擎代码零改动：
+- Host 半 `webServer` 注册 `/ai-news/*` 路由，用 subprocess 调 `python3 radar.py news --quiet --json-out data/plugin-news.json`；信源维护直接 fs 读写本仓 `data/sources/feeds.json`，与命令行共享同一份
+- `--quiet` 是 news 子命令专为插件加的开关：不打印摘要/逐源日志、不写时间戳三件套，只出 `--json-out` 的固定 JSON
+- Client 半用全局 `fetch` 同源调路由（持久化 ESM bundle 可用 fetch；动态沙箱插件的 `host.call` 此路不通，详见 references 第 22 条）
+- 引擎位置探测：环境变量 `AI_GIT_RADAR_DIR` → 硬编码工作区路径 → cwd 兄弟目录兜底；插件 entryId 为 `include:ai-news-panel`
+
+## 怎么扩展（核心设计）
+
+**加一个类目 = 在 `categories/` 新建一个 yaml**，脚本启动自动发现，报告自动多一个分区，无需改代码。字段见现有四个类目文件，关键项：
+
+- `topics` / `name_keywords`：GitHub 粗捞信号（topic 不支持 OR，每个单独查询）
+- `core_keywords`：本地二次校验，支持 `{strong:[...], weak:[...]}` 两级——身份强词（ai/llm/agent/gpt/大模型…）命中即准入；协议强词（mcp/rag/a2a/multimodal…）需另有 AI 身份词佐证（非 AI 应用也可能接一个 MCP 接口，见 references 第 14 条）；弱词需两个。纯 ASCII 短词自动加词边界（`ai` 不会误命中 `main`）
+- `readme_signals`：正则数组，配置后该类目改为"必须命中 README 信号"（免费/优惠类用这个）
+- `keep_lists: true`：保留 awesome/清单类（默认全局排除清单，但 token 资源清单有高价值）
+- `max_age_days`：限制项目年龄（技术趋势类用）
+- `strict_topic_match: true`：严格 topic 模式——单个类目 topic + 泛 AI 身份词不再准入，必须命中 ≥2 个生态 topic 或本类目专属强词（生态类用这个，防止通用工具挂一个 `claude-code` 标签就混入）
+- 全局排除规则集中在 `categories/_global.yaml`
+
+**两个匹配通道严格分开**（v0.4 修复，曾导致 dify/JavaGuide 误进生态类）：强/弱关键词只在 **name/desc 文本**里匹配；topic 只走独立的 topic 交集通道。一个叫 `skills` 的 topic 不会再冒充 `skill` 关键词。新增类目时不要把通用标签（`mcp`/`ai-agent`/`mcp-server`）放进生态专属类目的 `topics`——非生态项目也会挂，放进来会稀释精度。
+
+## 免费/优惠类目的检测口径
+
+`scripts/detectors.py` 纯静态文本分析（不调用任何第三方 API、不要用户 key）：
+
+- **免费额度**：正则抽 "多少 token/credit/次数 + 周期"，如 `20K tokens/day`、`1000万 Tokens`、`$5 free credits`
+- **优惠活动**：折扣/促销码、优惠券、%off、加赠额度、返现、首充赠送、黑五/周年庆/双11 节点大促、限时活动、学生优惠；无 token/API 语境的优惠（如 VPN 折扣）自动排除
+- **注册门槛**：信用卡（否定式优先，"no credit card required" 不会误判为需要）、手机验证、候补邀请、学生包、GitHub 登录
+- **国内可用性**：国内厂商名/直连信号 vs 需代理声明
+- **安全风险**：要求把官方 key 填入第三方服务（高，两种中文语序都覆盖）、非官方域名代理官方 API（中）、风险自负声明（低）；高风险项目评分强制不超过 B 级
+- 报告所有额度信息带"信息截至日期"，提示以官方页面为准
+
+## 评分（满分 100，六维）
+
+热度与增速 25 / 项目健康度 20 / 技术前沿度 15 / 可上手性 15 / 国内与中文 15 / 风险与合规 10，映射 S/A/B/C。明细随卡片输出，分数可解释。硬淘汰（归档、fork、星数门槛、模型本体）在分类层先做。
+
+## 已知边界
+
+- **GitHub 项目扫描（run）已封存为 legacy**：匿名通路受 Search 10 次/分钟、core 60 次/小时限流，全量较慢；代码与文档完整保留，需要项目分类/评分时仍可运行。日常情报用 `news`
+- 资讯只接零密钥 RSS/Atom；需要 key 的信源类型（X 搜索、公众号、网页选择器等）不做；个别源超时标进失败列表而非中断
+- 资讯/仓库翻译都靠 Agent/人工填，脚本不内置机翻、不引入翻译 API 密钥；新文章/新仓库首次出现时英文标题/简介先进待译清单，已译内容跨天复用
+- 免费/优惠类只做 README 静态分析，不实测 API 可用性/额度真实性；优惠有时效，报告已显式提示
+- HTML 报告无 JS、纯内联 CSS，交互只有锚点导航和 `<details>` 折叠；自动适配系统深浅色
+- 无跨天查重、无定时任务（后续版本按需补）
+- 抓层依赖各 feed 的 XML 格式与（legacy）GitHub 页面结构；feed 解析异常会记 FeedError，trending 解析若返回 0 条通常是改版，见 `references/数据源与已知坑.md`

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "AI News Workbench",
+    "description": "Browse RSS/Atom AI news in a sidebar panel and manage feeds visually; reuses the ai-git-radar Python engine."
+  }
+}

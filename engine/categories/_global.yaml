@@ -1,0 +1,39 @@
+# 全局规则：对所有类目生效。
+# 核心职责：实现用户的硬性要求——不包括 AI 模型本体开发。
+
+# 命中即硬排除（在 name/desc/topics/readme 头部里匹配，大小写不敏感）
+exclude_model_body:
+  topics:
+    - language-model
+    - model-weights
+    - inference-engine
+    - text-to-image-model
+    - pretrained-models       # transformers 这类模型定义/训练框架的典型 topic
+    - model-hub
+  # 词边界匹配，避免误伤（如 "framework for building apps on top of models"）
+  keywords:
+    - 'model weights?'
+    - 'pretrained checkpoint'
+    - 'pre-trained checkpoint'
+    - 'fine-tune this model'
+    - 'transformer implementation'
+    - 'pytorch implementation of .{0,20}(paper|model)'
+    - 'from scratch'           # "implement transformer from scratch" 类教学复现
+    # 模型定义/训练框架（用户明确排除"模型本体开发"）：锚定 model-definition/framework
+    # 这类措辞，应用层框架（langflow/dify 的 "build AI apps"）不会命中
+    - 'model[- ]definition framework'
+    - 'framework for (state-of-the-art |sota )?(machine learning |ml )?models'
+    - 'for (both )?inference and training'
+  # 仓库体积启发式：超大仓（默认 > 8GB）且 desc 命中 weight/checkpoint，视为权重仓
+  size_heuristic_gb: 8
+
+# 清单类（awesome/list）默认排除；free-tokens 类目在自己的 yaml 里 keep_lists: true 豁免
+exclude_lists:
+  name_pattern: '^(awesome|list|resources|curated)[-_ ]'
+  desc_pattern: 'awesome list|curated list|资源合集|清单导航'
+
+# 全局硬淘汰门槛（所有类目）
+hard_filters:
+  min_stars: 30          # 原型期门槛低些，v1 可调到 50
+  exclude_archived: true
+  exclude_fork: true

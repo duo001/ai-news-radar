@@ -1,0 +1,150 @@
+{
+  "addyosmani/agent-skills": {
+    "source": "Production-grade engineering skills for AI coding agents.",
+    "zh": "面向 AI 编程智能体的生产级工程技能集。"
+  },
+  "affaan-m/ecc": {
+    "source": "The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond.",
+    "zh": "智能体 harness 性能优化系统：为 Claude Code、Codex、Opencode、Cursor 等提供技能、直觉、记忆、安全与研究优先的开发范式。"
+  },
+  "anthropics/skills": {
+    "source": "Public repository for Agent Skills",
+    "zh": "Agent Skills（智能体技能）官方公开仓库。"
+  },
+  "browser-use/browser-use": {
+    "source": "Open-source Python library for AI browser agents, plus Browser Use Cloud: stealth browsers and a hosted agent API.",
+    "zh": "面向 AI 浏览器智能体的开源 Python 库，另提供 Browser Use Cloud：隐身浏览器和托管式智能体 API。"
+  },
+  "copilotkit/openbot": {
+    "source": "Open-source AI coworkers that each get a computer of their own: a browser, files and tools, with every action decided before it happens and recorded after. Bring any AG-UI agent.",
+    "zh": "开源 AI 同事：每个都有自己的电脑（浏览器、文件和工具），每个动作执行前先决策、执行后留痕。可接入任意 AG-UI 智能体。"
+  },
+  "deeplethe/utopia": {
+    "source": "World's first open-source enterprise world model.",
+    "zh": "号称全球首个开源的企业级世界模型。"
+  },
+  "deepseek-ai/deepseek-harness": {
+    "source": "DeepSeek Harness: Everything is a Plugin.",
+    "zh": "DeepSeek Harness：万物皆插件。"
+  },
+  "dietrichgebert/ponytail": {
+    "source": "Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.",
+    "zh": "让你的 AI 智能体像团队里最懒的资深开发一样思考——最好的代码，是你根本没写的代码。"
+  },
+  "f/prompts.chat": {
+    "source": "f.k.a. Awesome ChatGPT Prompts. Share, discover, and collect prompts from the community. Free and open source — self-host for your organization with complete privacy.",
+    "zh": "前身是 Awesome ChatGPT Prompts。在社区中分享、发现和收藏提示词。免费开源，可在组织内自托管，完全保护隐私。"
+  },
+  "farion1231/cc-switch": {
+    "source": "A cross-platform desktop All-in-One assistant for Claude Code, Codex, OpenCode,DeepSeek Harness and more. Only official website: ccswitch.io",
+    "zh": "跨平台桌面端 All-in-One 助手，面向 Claude Code、Codex、OpenCode、DeepSeek Harness 等。唯一官网：ccswitch.io。"
+  },
+  "firecrawl/firecrawl": {
+    "source": "Supercharge your AI agents with data from the web and beyond. Building the library for superintelligence. 🔥",
+    "zh": "用来自网络及更广来源的数据为你的 AI 智能体赋能，正在构建服务于超级智能的资料库。🔥"
+  },
+  "genspark-ai/genoffice": {
+    "source": "Free, open-source AI Office suite: Docs, Sheets, Slides, PDF, Markdown and HTML editors with a built-in AI agent, plus a `genoffice` CLI and agent skill so Claude Code, Codex and Cursor can create and edit real .docx/.xlsx/.pptx files locally. Bring your own key. macOS, Windows & Linux.",
+    "zh": "免费开源的 AI 办公套件：文档、表格、幻灯片、PDF、Markdown 和 HTML 编辑器，内置 AI 智能体，另带 genoffice CLI 和智能体技能，让 Claude Code、Codex、Cursor 在本地直接创建和编辑真实的 .docx/.xlsx/.pptx 文件。自带 key 即可，支持 macOS/Windows/Linux。"
+  },
+  "graphify-labs/graphify": {
+    "source": "Turn any codebase, with its docs, SQL schemas, configs, and PDFs, into a queryable knowledge graph. A /graphify skill for Claude Code, Cursor, Codex, and Gemini CLI: local deterministic AST parsing, every edge explained, no vector store.",
+    "zh": "把任意代码库（连同文档、SQL schema、配置和 PDF）变成可查询的知识图谱。提供 /graphify 技能给 Claude Code、Cursor、Codex、Gemini CLI：本地确定性 AST 解析，每条边都可解释，无需向量库。"
+  },
+  "juliusbrussee/caveman": {
+    "source": "🪨 why use many token when few token do trick. Viral skill + proxy for coding agents that cuts 65% of tokens by talking like a caveman.",
+    "zh": "🪨 能用更少 token 说清，何必用那么多。一个走红的编程智能体技能 + 代理，用「穴居人」式精简表达砍掉 65% 的 token。"
+  },
+  "langchain-ai/langchain": {
+    "source": "The agent engineering platform.",
+    "zh": "智能体工程平台。"
+  },
+  "langflow-ai/langflow": {
+    "source": "Langflow is a powerful tool for building and deploying AI-powered agents and workflows.",
+    "zh": "Langflow 是构建和部署 AI 智能体与工作流的强力工具。"
+  },
+  "langgenius/dify": {
+    "source": "Build Agentic workflows, RAG pipelines, with rich AI model and tool support on one collaborative workspace. Deploy on cloud, VPC, or self-hosted, so teams move from prototype to production without rebuilding the stack.",
+    "zh": "在一个协作工作区里构建智能体工作流和 RAG 管道，支持丰富的 AI 模型与工具。可部署在云端、VPC 或本地自托管，让团队无需重搭技术栈就能从原型走到生产。"
+  },
+  "leonxlnx/taste-skill": {
+    "source": "Agent skills that give coding agents taste: art direction, reference images and a browser check instead of generic AI pages",
+    "zh": "赋予编程智能体审美品味的 Agent 技能：艺术方向、参考图与浏览器自检，避免产出千篇一律的 AI 页面。"
+  },
+  "milind-soni/openmausbot": {
+    "source": "Open-source Grok Bot alternative with a virtual machine that bots can use",
+    "zh": "开源的 Grok 机器人替代品，自带一台可供机器人操作的虚拟机。"
+  },
+  "miuuyy/codex-chatgpt-web": {
+    "source": "Use ChatGPT Web (including Pro) as a native model in Codex — with context, tools, streaming and images, without using Codex quota.",
+    "zh": "把 ChatGPT 网页版（含 Pro）当作 Codex 的原生模型来用——支持上下文、工具、流式输出和图片，且不消耗 Codex 额度。"
+  },
+  "morluto/rea": {
+    "source": "Reverse engineer anything with agents, from app behavior down to native binaries.",
+    "zh": "用智能体对任意目标做逆向工程，从 App 行为一路分析到原生二进制。"
+  },
+  "n8n-io/n8n": {
+    "source": "Fair-code workflow automation platform with native AI capabilities. Combine visual building with custom code, self-host or cloud, 400+ integrations.",
+    "zh": "公平代码（fair-code）许可的工作流自动化平台，自带原生 AI 能力。可视化搭建与自定义代码结合，支持自托管或云端，400+ 集成。"
+  },
+  "nextlevelbuilder/ui-ux-pro-max-skill": {
+    "source": "An AI skill that provides design intelligence for building professional UI/UX across multiple platforms.",
+    "zh": "一款为 AI 提供设计能力的技能，帮助在多平台上构建专业级 UI/UX。"
+  },
+  "nousresearch/hermes-agent": {
+    "source": "The agent that grows with you",
+    "zh": "与你一起成长的智能体。"
+  },
+  "ollama/ollama": {
+    "source": "Get up and running with Kimi, GLM, MiniMax, DeepSeek, gpt-oss, Qwen, Gemma and other models.",
+    "zh": "一键跑起 Kimi、GLM、MiniMax、DeepSeek、gpt-oss、Qwen、Gemma 等模型。"
+  },
+  "open-webui/open-webui": {
+    "source": "User-friendly AI Interface (Supports Ollama, OpenAI API, ...)",
+    "zh": "易用的 AI 界面（支持 Ollama、OpenAI API 等）。"
+  },
+  "panniantong/agent-reach": {
+    "source": "Give your AI agent eyes to see the entire internet. Read & search Twitter, Reddit, YouTube, GitHub, Bilibili, XiaoHongShu — one CLI, zero API fees.",
+    "zh": "给你的 AI 智能体一双看见整个互联网的眼睛。读取并搜索 Twitter、Reddit、YouTube、GitHub、B站、小红书——一个 CLI 搞定，零 API 费用。"
+  },
+  "paperclipai/paperclip": {
+    "source": "The open-source app everyone uses to manage agents at work",
+    "zh": "大家都在用的开源应用，用来管理工作中的各类智能体。"
+  },
+  "rehan-remade/universal-modder": {
+    "source": "Point Claude at any game. Skills, tools and the fal MCP that let Claude Code mod almost any PC game you own: recon, reverse engineering, fal-generated art/3D/audio, in-game testing, showcase videos.",
+    "zh": "让 Claude 改造任意游戏。配套技能、工具和 fal MCP，让 Claude Code 能给几乎任意 PC 游戏做模组：侦察、逆向、fal 生成美术/3D/音频、游戏内测试和演示视频。"
+  },
+  "ryze-ai-adgent/open-seo-mcp-skills": {
+    "source": "Free SEO MCP server + open-source SEO and GEO skills for Claude: keyword research, rank tracking, audits, backlinks, AI visibility on your real GSC/GA4/ads data. claude mcp add ryze --transport http https://connector.get-ryze.ai/mcp",
+    "zh": "免费的 SEO MCP server，加开源的 SEO/GEO 技能（面向 Claude）：关键词调研、排名追踪、站点审计、外链，以及基于你真实 GSC/GA4/广告数据的 AI 可见度分析。"
+  },
+  "shadcn-ui/ui": {
+    "source": "Composable, accessible components with thoughtful defaults. Build your own component library with code you can customize, extend, and make your own.",
+    "zh": "可组合、无障碍的组件库，默认配置考究。用你可定制、扩展并完全掌控的代码，搭建自己的组件库（已扩展生成式 UI / gen-ui 方向）。"
+  },
+  "significant-gravitas/autogpt": {
+    "source": "AutoGPT is the vision of accessible AI for everyone, to use and to build on. Our mission is to provide the tools, so that you can focus on what matters.",
+    "zh": "AutoGPT 的愿景是让人人都能便捷地使用和构建 AI。使命是提供工具，让你专注于真正重要的事。"
+  },
+  "stablyai/orca": {
+    "source": "Orca lets you run a fleet of coding agents (e.g. Claude Code, Codex) with your own subscription. Available on desktop, mobile and remote runtime.",
+    "zh": "Orca 让你用自己的订阅同时运行一整支编程智能体舰队（如 Claude Code、Codex），支持桌面、移动端与远程运行时。"
+  },
+  "tauricresearch/tradingagents": {
+    "source": "TradingAgents: Multi-Agents LLM Financial Trading Framework",
+    "zh": "TradingAgents：多智能体 LLM 金融交易框架。"
+  },
+  "thedotmack/claude-mem": {
+    "source": "Persistent Context Across Sessions for Every Agent –  Captures everything your agent does during sessions, compresses it with AI, and injects relevant context back into future sessions. Works with Claude Code, OpenClaw, Codex, Gemini, Hermes, Copilot, OpenCode + More",
+    "zh": "为每个智能体提供跨会话的持久上下文——记录智能体在会话中的所有操作，用 AI 压缩，并在后续任务中注入相关上下文。"
+  },
+  "wangzan101/mika": {
+    "source": "An on-device AI agent for Android that operates apps and the web to get things done for you.",
+    "zh": "安卓端本地运行的 AI 智能体，能操作 App 和网页，替你把事情办完。"
+  },
+  "xiaoduoya/codex-with-chatgpt": {
+    "source": "ChatGPT thinks. Codex works. Use ChatGPT as the planning brain while keeping the Codex harness.",
+    "zh": "ChatGPT 负责思考，Codex 负责干活。把 ChatGPT 当作规划大脑，同时保留 Codex 的 harness。"
+  }
+}

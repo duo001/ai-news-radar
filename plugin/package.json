@@ -1,0 +1,28 @@
+{
+  "name": "@local/ai-news-panel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 资讯工作台：侧边栏面板浏览 RSS/Atom 资讯并可视化维护信源，复用 ai-git-radar 的 Python 引擎。",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["slots"]
+    }
+  }
+}

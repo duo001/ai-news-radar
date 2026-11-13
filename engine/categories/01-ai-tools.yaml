@@ -1,0 +1,55 @@
+# 类目 1：热门 AI 工具（应用层）
+# 加新类目 = 照此文件复制一个 yaml，脚本启动时自动发现，无需改代码。
+id: ai-tools
+name: 热门 AI 工具
+enabled: true
+desc: 直接可用的 AI 应用与工具：Agent、RAG、MCP、编程助手、生图音视频、工作流。
+# GitHub topic 是一等信号；每个 topic 单独发一次搜索（topic 不支持 OR）。
+topics:
+  - ai-agent
+  - llm
+  - rag
+  - mcp
+  - langchain
+  - ai-code-assistant
+  - generative-ai
+  - vector-database
+# topic 没命中时的名称/描述兜底关键词（走 in:name,description）
+name_keywords:
+  - agent
+  - chatbot
+  - copilot
+  - rag
+  - llm
+  - mcp
+# 本地二次校验词：搜索结果必须在 name/desc/topics/readme 命中其一，否则视为噪声丢弃。
+# 注意：model 这类泛词不单独作为准入依据（会误伤 README 提到 "data model" 的无关项目），
+# 强信号（ai/llm/agent/gpt/mcp/rag…）才直接准入；弱信号需命中两个。
+core_keywords:
+  strong:
+    - ai
+    - llm
+    - agent
+    - gpt
+    - chatgpt
+    - chatbot
+    - copilot
+    - rag
+    - mcp
+    - generative-ai
+    - aigc
+    - 大模型
+    - 智能体
+  weak:
+    - generative
+    - 智能
+    - 人工智能
+    - machine learning
+    - 深度学习
+# 本类目 README 正则信号（可选；空数组表示不做 README 强校验）
+readme_signals: []
+# 本类目内额外排除（在全局排除之上叠加）
+exclude:
+  keywords: []
+# 卡片上重点展示的字段（report 层按此排序）
+card_fields: [what, use_cases, quickstart, china_access]

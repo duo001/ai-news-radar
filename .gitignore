@@ -1,0 +1,22 @@
+# 运行时缓存与本地产物
+**/data/cache/
+**/__pycache__/
+*.pyc
+**/plugin-news.json
+**/news-20*.json
+**/news-20*.md
+**/news-20*.html
+**/todo_*translate*.json
+
+# 本地凭证（config.json 含可选 gh_token 字段，公开仓默认不入库）
+engine/config.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# 系统/编辑器
+.DS_Store
+.idea/
+.vscode/
+*.swp

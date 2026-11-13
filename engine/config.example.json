@@ -1,0 +1,5 @@
+{
+  "_说明": "可选：填入 GitHub token 可走 REST API（更快、搜索额度 30 次/分钟）。不填也能完整运行，自动走 github.com 网页 + raw 零额度通路。",
+  "_在哪申请": "https://github.com/settings/tokens → Generate new token (classic) → 勾 public_repo 即可；也可用环境变量 GH_TOKEN / GITHUB_TOKEN",
+  "gh_token": ""
+}
