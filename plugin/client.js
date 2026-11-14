@@ -69,6 +69,14 @@ window.__ModuleLoader__.load({
 .ain-progress .fill { height:100%; background:var(--dsw-alias-brand-primary); transition:width .3s ease; }
 .ain-progress .current { color:var(--dsw-alias-label-secondary); font-size:11px; }
 .ain-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.ain-search { position:relative; display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.ain-search-input { flex:1; padding:8px 74px 8px 12px; border-radius:8px; border:1px solid var(--dsw-alias-color-border);
+  background:var(--dsw-alias-color-background); color:var(--dsw-alias-color-foreground); font-size:13px; outline:none; }
+.ain-search-input:focus { border-color:var(--dsw-alias-color-primary); }
+.ain-search-clear { position:absolute; right:64px; border:none; background:none; color:var(--dsw-alias-label-secondary);
+  cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; }
+.ain-search-clear:hover { color:var(--dsw-alias-color-foreground); background:var(--dsw-alias-color-border); }
+.ain-search-count { position:absolute; right:12px; font-size:12px; color:var(--dsw-alias-label-secondary); min-width:36px; text-align:right; }
 .ain-tag { padding:3px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:12px;
   font-size:11px; background:var(--dsw-alias-bg-layer-1); cursor:pointer;
   color:var(--dsw-alias-label-secondary); }
@@ -182,6 +190,7 @@ window.__ModuleLoader__.load({
       const [activeTag, setActiveTag] = useState('全部');
   const [viewMode, setViewMode] = useState('list');   // 'list' | 'masonry'
   const [dim, setDim] = useState('group');            // 'group' | 'time'
+      const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
 
       const load = useCallback(async (refresh) => {
         if (refresh) setRefreshing(true); else setLoading(true);
@@ -228,10 +237,21 @@ window.__ModuleLoader__.load({
       const trans = (data && data.news_translations) || {};
       const failures = (data && data.news_failures) || [];
 
+      // 搜索关键字：命中标题/摘要/中文译文任一即保留（大小写不敏感）
+      const q = query.trim().toLowerCase();
       // 按激活标签过滤（按分组维度才有标签行）
-      const filtered = (dim === 'group' && activeTag !== '全部')
+      let filtered = (dim === 'group' && activeTag !== '全部')
         ? news.filter((it) => it.group === activeTag)
         : news;
+      if (q) {
+        filtered = filtered.filter((it) => {
+          const tr = trans[it.link] || {};
+          const zh = (tr.zh_title || '') + ' ' + (tr.zh_summary || '');
+          return (it.title || '').toLowerCase().includes(q)
+            || (it.summary || '').toLowerCase().includes(q)
+            || zh.toLowerCase().includes(q);
+        });
+      }
       // 分桶 key：group 维度用分组名，time 维度用时间桶
       const bucketOf = (it) => dim === 'time' ? timeBucket(it.published) : it.group;
       const groups = {};
@@ -281,6 +301,19 @@ window.__ModuleLoader__.load({
             className: 'ain-btn primary', disabled: refreshing,
             onClick: () => load(true),
           }, refreshing ? '采集中…' : '在线刷新')),
+        // 搜索框：过滤标题/摘要/中文译文
+        h('div', { className: 'ain-search' },
+          h('input', {
+            type: 'text', className: 'ain-search-input',
+            placeholder: '搜索标题、摘要或中文译文…',
+            value: query,
+            onInput: (e) => setQuery(e.target.value),
+          }),
+          query && h('button', {
+            className: 'ain-search-clear', title: '清空',
+            onClick: () => setQuery(''),
+          }, '✕'),
+          query && h('span', { className: 'ain-search-count' }, `${filtered.length} 条`)),
         data && data.generated_at && h('div', { className: 'ain-meta' },
           `更新于 ${new Date(data.generated_at).toLocaleString()}`),
         // 进度条（采集期间显示）
@@ -321,6 +354,7 @@ window.__ModuleLoader__.load({
         failures.length > 0 && h('div', { className: 'ain-err' },
           `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
+          : filtered.length === 0 && q ? h('div', { className: 'ain-empty' }, `没有匹配「${query.trim()}」的资讯`)
           : viewMode === 'masonry'
           ? h('div', { className: 'ain-masonry' },
             filtered.map((it) => {
