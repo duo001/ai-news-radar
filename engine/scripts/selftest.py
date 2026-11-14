@@ -326,9 +326,9 @@ def main():
               "资讯 HTML 对特殊字符转义")
 
     # 并发 workers=1 与默认 workers 对同一缓存源结果一致（离线、确定性）
-    one, fail1 = feeds.fetch_all(only="", offline=True, per_source_limit=3,
+    one, fail1, _ = feeds.fetch_all(only="", offline=True, per_source_limit=3,
                                  log=lambda *_: None, workers=1)
-    many, failm = feeds.fetch_all(only="", offline=True, per_source_limit=3,
+    many, failm, _ = feeds.fetch_all(only="", offline=True, per_source_limit=3,
                                   log=lambda *_: None, workers=8)
     check(len(one) == len(many) and {e["link"] for e in one} == {e["link"] for e in many},
           f"并发与串行抓取条目一致（{len(one)} 条，离线缓存）")

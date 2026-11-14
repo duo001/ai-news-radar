@@ -263,9 +263,9 @@ def cmd_run(args):
     news_entries, news_failures = [], []
     if not args.offline or (DATA / "cache" / "feeds").exists():
         _log("采集 AI 资讯信源（RSS/Atom）……")
-        news_entries, news_failures = feeds.fetch_all(
+        news_entries, news_failures, news_dup = feeds.fetch_all(
             offline=args.offline, per_source_limit=args.news_per, log=_log)
-        _log(f"资讯合计 {len(news_entries)} 条，失败信源 {len(news_failures)} 个")
+        _log(f"资讯合计 {len(news_entries)} 条，失败信源 {len(news_failures)} 个，去重 {news_dup} 条")
 
     payload = {
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -420,7 +420,7 @@ def cmd_news(args):
     不碰 GitHub（GitHub 项目拉取已封存到 run 命令）。
     """
     try:
-        entries, failures = feeds.fetch_all(
+        entries, failures, dup_count = feeds.fetch_all(
             only=args.only, offline=args.offline,
             per_source_limit=args.per_source,
             log=(lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log,
@@ -441,6 +441,7 @@ def cmd_news(args):
         "mode": "news-only",
         "news": _serialize_news(entries),
         "news_failures": failures,
+        "news_dup": dup_count,
         "news_translations": news_trans,
     }
     stamp = datetime.now().strftime("%Y%m%d-%H%M")

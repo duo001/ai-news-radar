@@ -12,6 +12,23 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
 
+    function groupColor(name) {
+      let h = 0;
+      for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+      const hue = h % 360;
+      return `hsl(${hue} 60% 48%)`;
+    }
+    function srcInitial(name) {
+      return (name || '?').trim().charAt(0).toUpperCase();
+    }
+    function fmtCount(n) {
+      return n >= 10000 ? (n/10000).toFixed(1) + 'w' : n >= 1000 ? (n/1000).toFixed(1) + 'k' : String(n);
+    }
+    function todayCount(news) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      return news.filter(it => it.published && new Date(it.published) >= today).length;
+    }
+
     const CSS = `
 .ain-wrap { display:flex; flex-direction:column; height:100%; padding:16px 20px 24px; overflow:auto;
   color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-base); font-size:13px; }
@@ -42,6 +59,53 @@ window.__ModuleLoader__.load({
 .ain-tag:hover { border-color:var(--dsw-alias-brand-primary); color:var(--dsw-alias-brand-primary); }
 .ain-tag.active { background:var(--dsw-alias-brand-primary); color:#fff; border-color:var(--dsw-alias-brand-primary); }
 .ain-tag .count { margin-left:4px; opacity:.7; }
+.ain-viewtoggle { display:flex; gap:0; border:1px solid var(--dsw-alias-border-l2); border-radius:6px; overflow:hidden; margin-left:auto; }
+.ain-vt { padding:6px 14px; font-size:12px; background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-secondary); border:none; cursor:pointer; }
+.ain-vt.active { background:var(--dsw-alias-brand-primary); color:#fff; }
+.ain-dup { color:var(--dsw-alias-label-secondary); font-size:11px; margin-left:8px; }
+.ain-list { display:flex; flex-direction:column; }
+.ain-masonry { column-count:2; column-gap:12px; }
+@media(min-width:900px){ .ain-masonry{ column-count:3; } }
+@media(min-width:1200px){ .ain-masonry{ column-count:4; } }
+.ain-masonry .ain-item { break-inside:avoid; margin-bottom:12px; display:block; }
+.ain-masonry .ain-item .t { font-size:13px; line-height:1.5; -webkit-line-clamp:3; }
+.ain-masonry .ain-item .s { font-size:12px; -webkit-line-clamp:4; margin-top:6px; }
+.ain-stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+.ain-stat { padding:14px 16px; background:var(--dsw-alias-bg-layer-1); border:1px solid var(--dsw-alias-border-l1);
+  border-radius:12px; display:flex; flex-direction:column; gap:4px; }
+.ain-stat .n { font-size:24px; font-weight:700; color:var(--dsw-alias-brand-primary); line-height:1; }
+.ain-stat .l { font-size:11px; color:var(--dsw-alias-label-secondary); letter-spacing:.3px; text-transform:uppercase; }
+.ain-stat.accent .n { color:var(--dsw-alias-label-primary); }
+.ain-item { position:relative; overflow:hidden; padding:14px 16px 14px 18px; border:1px solid var(--dsw-alias-border-l1);
+  border-radius:12px; margin-bottom:12px; text-decoration:none; color:inherit; background:var(--dsw-alias-bg-layer-1);
+  transition:box-shadow .15s ease, transform .15s ease, border-color .15s ease; }
+.ain-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--group-color, var(--dsw-alias-border-l2)); }
+.ain-item:hover { border-color:var(--dsw-alias-brand-primary); box-shadow:0 4px 16px rgba(0,0,0,.08); transform:translateY(-1px); }
+.ain-item .meta-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.ain-avatar { width:22px; height:22px; border-radius:6px; background:var(--group-color, var(--dsw-alias-brand-primary));
+  color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+.ain-src { font-size:11px; color:var(--dsw-alias-label-secondary); font-weight:600; }
+.ain-gtag { padding:2px 8px; border-radius:4px; font-size:10px; background:color-mix(in srgb, var(--group-color, var(--dsw-alias-brand-primary)) 12%, transparent);
+  color:var(--group-color, var(--dsw-alias-brand-primary)); font-weight:600; }
+.ain-time { margin-left:auto; font-size:10px; color:var(--dsw-alias-label-secondary); }
+.ain-item .t { font-size:14px; font-weight:600; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2;
+  -webkit-box-orient:vertical; overflow:hidden; margin-bottom:6px; }
+.ain-item .s { font-size:12px; color:var(--dsw-alias-label-secondary); line-height:1.55; display:-webkit-box; -webkit-line-clamp:3;
+  -webkit-box-orient:vertical; overflow:hidden; margin-top:0; }
+.ain-masonry .ain-item .t { -webkit-line-clamp:3; font-size:13.5px; }
+.ain-masonry .ain-item .s { -webkit-line-clamp:5; font-size:11.5px; }
+.ain-item.deal { border-color:var(--dsw-alias-brand-primary); background:
+  linear-gradient(135deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 6%, var(--dsw-alias-bg-layer-1)),
+  var(--dsw-alias-bg-layer-1)); }
+.ain-item.deal::before { width:4px; }
+.ain-item.deal .t { font-weight:700; }
+.ain-deal-badge { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700;
+  background:var(--dsw-alias-brand-primary); color:#fff; margin-left:8px; }
+.ain-deal-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+.ain-deal-tags span { padding:2px 6px; border-radius:4px; font-size:10px;
+  background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); }
+
 .ain-group h3 { font-size:13px; margin:0 0 8px; color:var(--dsw-alias-label-secondary); font-weight:600; }
 .ain-item { display:block; padding:10px 12px; border:1px solid var(--dsw-alias-border-l1);
   border-radius:8px; margin-bottom:8px; text-decoration:none; color:inherit;
@@ -99,6 +163,7 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState('');
       const [progress, setProgress] = useState(null);
       const [activeTag, setActiveTag] = useState('全部');
+  const [viewMode, setViewMode] = useState('list');   // 'list' | 'masonry'
 
       const load = useCallback(async (refresh) => {
         if (refresh) setRefreshing(true); else setLoading(true);
@@ -165,6 +230,17 @@ window.__ModuleLoader__.load({
         h('div', { className: 'ain-head' },
           h('h2', { className: 'ain-title' }, 'AI 资讯'),
           h('span', { className: 'ain-meta', style: { margin: 0 } }, `${news.length} 条`),
+          (data && data.news_dup > 0) && h('span', { className: 'ain-dup' },
+            `去重 ${data.news_dup} 条`),
+          h('div', { className: 'ain-viewtoggle' },
+            h('button', {
+              className: 'ain-vt' + (viewMode === 'list' ? ' active' : ''),
+              onClick: () => setViewMode('list'),
+            }, '☰ 列表'),
+            h('button', {
+              className: 'ain-vt' + (viewMode === 'masonry' ? ' active' : ''),
+              onClick: () => setViewMode('masonry'),
+            }, '▦ 瀑布流')),
           h('button', {
             className: 'ain-btn primary', disabled: refreshing,
             onClick: () => load(true),
@@ -179,6 +255,22 @@ window.__ModuleLoader__.load({
               ? `当前：${progress.current}` : '')),
           h('div', { className: 'track' },
             h('div', { className: 'fill', style: { width: pct + '%' } }))),
+        !refreshing && news.length > 0 && h('div', { className: 'ain-stats' },
+          h('div', { className: 'ain-stat accent' },
+            h('div', { className: 'n' }, String(todayCount(news))),
+            h('div', { className: 'l' }, '今日新增')),
+          h('div', { className: 'ain-stat' },
+            h('div', { className: 'n' }, String(news.length)),
+            h('div', { className: 'l' }, '资讯总数')),
+          h('div', { className: 'ain-stat' },
+            h('div', { className: 'n' }, String((data && data.news_dup) || 0)),
+            h('div', { className: 'l' }, '已去重')),
+          h('div', { className: 'ain-stat accent' },
+            h('div', { className: 'n' }, String(news.filter(x => x._kind === 'deal').length)),
+            h('div', { className: 'l' }, '情报福利')),
+          h('div', { className: 'ain-stat' },
+            h('div', { className: 'n' }, String(new Set(news.map(x => x.source_id || x.source_name)).size)),
+            h('div', { className: 'l' }, '活跃信源'))),
         // 标签过滤（有资讯且不止一个分组时显示）
         !refreshing && news.length > 0 && tagList.length > 0 && h('div', { className: 'ain-tags' },
           h('button', {
@@ -193,6 +285,32 @@ window.__ModuleLoader__.load({
         failures.length > 0 && h('div', { className: 'ain-err' },
           `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
+          : viewMode === 'masonry'
+          ? h('div', { className: 'ain-masonry' },
+            filtered.map((it) => {
+              const tr = trans[it.link] || {};
+              const title = tr.zh_title || it.title;
+              const showOrig = tr.zh_title && tr.zh_title !== it.title;
+              const summary = tr.zh_summary || it.summary || '';
+              const gc = groupColor(it.group);
+              const isDeal = it._kind === 'deal';
+              return h('a', {
+                className: 'ain-item' + (isDeal ? ' deal' : ''), key: it.link,
+                href: it.link, target: '_blank', rel: 'noreferrer',
+                style: { '--group-color': gc },
+              },
+                h('div', { className: 'meta-row' },
+                  h('div', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(it.source_name)),
+                  h('span', { className: 'ain-src' }, it.source_name),
+                  h('span', { className: 'ain-gtag' }, it.group),
+                  isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
+                  h('span', { className: 'ain-time' }, fmtDate(it.published))),
+                h('div', { className: 't' }, title),
+                showOrig && h('div', { className: 'orig' }, it.title),
+                summary && h('div', { className: 's' }, summary),
+                isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
+                  it._tags.map(t => h('span', { key: t }, t))));
+            }))
           : Object.entries(groups).map(([gname, items]) =>
             h('div', { className: 'ain-group', key: gname },
               h('h3', null, `${gname}（${items.length}）`),
@@ -201,16 +319,24 @@ window.__ModuleLoader__.load({
                 const title = tr.zh_title || it.title;
                 const showOrig = tr.zh_title && tr.zh_title !== it.title;
                 const summary = tr.zh_summary || it.summary || '';
+                const gc = groupColor(it.group);
+                const isDeal = it._kind === 'deal';
                 return h('a', {
-                  className: 'ain-item', key: it.link,
+                  className: 'ain-item' + (isDeal ? ' deal' : ''), key: it.link,
                   href: it.link, target: '_blank', rel: 'noreferrer',
+                  style: { '--group-color': gc },
                 },
+                  h('div', { className: 'meta-row' },
+                    h('div', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(it.source_name)),
+                    h('span', { className: 'ain-src' }, it.source_name),
+                    h('span', { className: 'ain-gtag' }, it.group),
+                    isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
+                    h('span', { className: 'ain-time' }, fmtDate(it.published))),
                   h('div', { className: 't' }, title),
                   showOrig && h('div', { className: 'orig' }, it.title),
                   summary && h('div', { className: 's' }, summary),
-                  h('div', { className: 'm' },
-                    h('span', null, it.source_name),
-                    h('span', null, fmtDate(it.published))));
+                  isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
+                    it._tags.map(t => h('span', { key: t }, t))));
               }))));
     }
 

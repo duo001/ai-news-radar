@@ -219,6 +219,141 @@
         "工程实践"
       ],
       "enabled": true
+    },
+    {
+      "id": "anandtech",
+      "name": "AnandTech",
+      "url": "https://www.anandtech.com/rss/",
+      "kind": "rss",
+      "group": "硬件与芯片",
+      "tags": [
+        "hardware",
+        "chips",
+        "cpu",
+        "gpu"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "tomshardware",
+      "name": "Tom's Hardware",
+      "url": "https://www.tomshardware.com/feeds/",
+      "kind": "rss",
+      "group": "硬件与芯片",
+      "tags": [
+        "hardware",
+        "pc",
+        "components"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "science-daily",
+      "name": "ScienceDaily Top",
+      "url": "https://www.sciencedaily.com/rss/top/science.xml",
+      "kind": "rss",
+      "group": "学术研究",
+      "tags": [
+        "science",
+        "research"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "phys-org",
+      "name": "Phys.org",
+      "url": "https://phys.org/rss-feed/",
+      "kind": "rss",
+      "group": "学术研究",
+      "tags": [
+        "physics",
+        "science"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "hacker-news-front",
+      "name": "Hacker News Front",
+      "url": "https://hnrss.org/frontpage",
+      "kind": "rss",
+      "group": "开发者社区",
+      "tags": [
+        "dev",
+        "startups"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "dev-to",
+      "name": "DEV.to Top",
+      "url": "https://dev.to/feed",
+      "kind": "rss",
+      "group": "开发者社区",
+      "tags": [
+        "dev",
+        "programming"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "hacker-news-show",
+      "name": "Hacker News Show HN",
+      "url": "https://hnrss.org/show",
+      "kind": "rss",
+      "group": "创业与商业",
+      "tags": [
+        "startups",
+        "launch"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "engadget",
+      "name": "Engadget",
+      "url": "https://www.engadget.com/rss.xml",
+      "kind": "rss",
+      "group": "科技媒体",
+      "tags": [
+        "tech",
+        "gadgets"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "gizmodo",
+      "name": "Gizmodo",
+      "url": "https://gizmodo.com/rss",
+      "kind": "rss",
+      "group": "科技媒体",
+      "tags": [
+        "tech",
+        "science"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wired",
+      "name": "WIRED",
+      "url": "https://www.wired.com/feed/rss",
+      "kind": "rss",
+      "group": "科技媒体",
+      "tags": [
+        "tech",
+        "culture"
+      ],
+      "enabled": true
+    },
+    {
+      "id": "bbc-tech",
+      "name": "BBC Technology",
+      "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+      "kind": "rss",
+      "group": "科技媒体",
+      "tags": [
+        "tech",
+        "news"
+      ],
+      "enabled": true
     }
   ]
 }

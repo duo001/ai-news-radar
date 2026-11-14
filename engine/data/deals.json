@@ -1,0 +1,93 @@
+{
+  "$comment": "模型优惠/免费token/API中转站情报。手动维护，插件读取后与 RSS 混排。expires 缺失=长期有效，过期的条目前端自动隐藏。",
+  "deals": [
+    {
+      "id": "openrouter-free-models",
+      "title": "OpenRouter 免费模型池",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "OpenRouter 聚合多家模型，:free 后缀模型可免费用（有速率限制），注册即送少量积分。",
+      "link": "https://openrouter.ai/models?max_price=0",
+      "source_name": "OpenRouter",
+      "expires": null,
+      "tags": ["免费", "聚合", "长期"]
+    },
+    {
+      "id": "groq-free-tier",
+      "title": "Groq 免费 API 额度",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "Groq 提供 Llama 系列模型的免费 tier，速度快，适合开发调试。",
+      "link": "https://console.groq.com/",
+      "source_name": "Groq",
+      "expires": null,
+      "tags": ["免费", "Llama"]
+    },
+    {
+      "id": "mistral-la-plateforme-free",
+      "title": "Mistral La Plateforme 免费层",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "Mistral 官方平台有免费实验层，包含 mistral-small 等模型。",
+      "link": "https://console.mistral.ai/",
+      "source_name": "Mistral AI",
+      "expires": null,
+      "tags": ["免费"]
+    },
+    {
+      "id": "siliconflow-signup",
+      "title": "硅基流动（SiliconFlow）注册赠金",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "国内中转站，新用户注册送 14 元额度，可用 DeepSeek / Qwen / Llama 系列，国内直连。",
+      "link": "https://siliconflow.cn/",
+      "source_name": "SiliconFlow",
+      "expires": null,
+      "tags": ["国内", "注册赠金", "中转站"]
+    },
+    {
+      "id": "deepseek-official-api",
+      "title": "DeepSeek 官方 API（低价）",
+      "kind": "deal",
+      "group": "模型优惠与福利",
+      "summary": "DeepSeek 官方 API 价格远低于国际厂商，国内直连，支持缓存折扣。",
+      "link": "https://platform.deepseek.com/",
+      "source_name": "DeepSeek",
+      "expires": null,
+      "tags": ["低价", "国内", "官方"]
+    },
+    {
+      "id": "github-models-preview",
+      "title": "GitHub Models（免费试用）",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "GitHub 给开发者免费试用多种主流模型（GPT-4o、Claude、Llama 等），按个人账号限额。",
+      "link": "https://github.com/marketplace/models",
+      "source_name": "GitHub",
+      "expires": null,
+      "tags": ["免费", "多模型"]
+    },
+    {
+      "id": "huggingface-inference-free",
+      "title": "HuggingFace Inference API 免费层",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "HuggingFace 提供免费推理层，可调用大量开源模型，有速率限制。",
+      "link": "https://huggingface.co/inference-api",
+      "source_name": "Hugging Face",
+      "expires": null,
+      "tags": ["免费", "开源模型"]
+    },
+    {
+      "id": "cohere-trial-key",
+      "title": "Cohere Trial API Key",
+      "kind": "free-tokens",
+      "group": "模型优惠与福利",
+      "summary": "Cohere 提供免费 trial key，包含 Command R 等模型，无需信用卡。",
+      "link": "https://dashboard.cohere.com/",
+      "source_name": "Cohere",
+      "expires": null,
+      "tags": ["免费", "无需信用卡"]
+    }
+  ]
+}

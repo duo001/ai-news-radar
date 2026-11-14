@@ -34,6 +34,14 @@ const OPML_CATALOG_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'opml-catalog
 const SUGGESTIONS_JSON = path.join(ENGINE_DIR, 'data', 'source-suggestions.json');
 const NEWS_PROGRESS_JSON = path.join(ENGINE_DIR, 'data', 'news-progress.json');
 const PLUGIN_NEWS_JSON = path.join(ENGINE_DIR, 'data', 'plugin-news.json');
+// 内存缓存：切 tab 不再每次重读 6MB+ JSON，5 分钟内复用
+let newsCache = null;
+let newsCacheAt = 0;
+const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEALS_JSON = path.join(ENGINE_DIR, 'data', 'deals.json');
+let dealsCache = null;
+let dealsCacheAt = 0;
+const DEALS_CACHE_TTL_MS = 10 * 60 * 1000;   // 情报类低频变化，10 分钟
 const PYTHON = process.env.AI_GIT_RADAR_PYTHON || 'python3';
 
 const ROUTE_PREFIX = '/ai-news';
@@ -59,6 +67,33 @@ function writeFeeds(doc) {
 }
 
 // 调 Python 引擎采集；offline=true 只读数缓存，秒级返回。
+async function readDeals() {
+  const now = Date.now();
+  if (dealsCache && (now - dealsCacheAt) < DEALS_CACHE_TTL_MS) return dealsCache;
+  if (!existsSync(DEALS_JSON)) return [];
+  try {
+    const doc = JSON.parse(await readFile(DEALS_JSON, 'utf-8'));
+    dealsCache = doc.deals || [];
+    dealsCacheAt = now;
+    return dealsCache;
+  } catch (e) { return []; }
+}
+
+function dealsAsNewsItems(deals) {
+  // 转成 news item 格式，混入 RSS 列表；_kind='deal' 供前端样式区分
+  return deals.map(d => ({
+    title: d.title,
+    link: d.link,
+    summary: d.summary || '',
+    published: d.expires ? d.expires : null,
+    source_id: d.id,
+    source_name: d.source_name || d.link,
+    group: d.group || '模型优惠与福利',
+    _kind: 'deal',
+    _tags: d.tags || [],
+  }));
+}
+
 function runRadarNews({ offline = true, perSource = 8, only = '' } = {}) {
   return new Promise((resolve, reject) => {
     const argv = [PYTHON, RADAR_PY, 'news',
@@ -185,11 +220,27 @@ export async function apply(ctx) {
         const only = url.searchParams.get('only') || '';
         if (refresh) {
           await runRadarNews({ offline: false, perSource, only });
+          newsCache = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
+          newsCacheAt = Date.now();
         } else if (!existsSync(PLUGIN_NEWS_JSON)) {
           // 首次：先用缓存快速产出一份
           await runRadarNews({ offline: true, perSource, only });
+          newsCache = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
+          newsCacheAt = Date.now();
+        }
+        const deals = await readDeals();
+        const dealItems = dealsAsNewsItems(deals);
+        // 内存缓存命中：跳过磁盘读+JSON 解析
+        const now = Date.now();
+        if (!refresh && newsCache && (now - newsCacheAt) < NEWS_CACHE_TTL_MS) {
+          sendJson(res, 200, { ok: true, ...newsCache,
+            news: [...dealItems, ...(newsCache.news || [])] });
+          return;
         }
         const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
+        payload.news = [...dealItems, ...(payload.news || [])];
+        newsCache = payload;
+        newsCacheAt = now;
         sendJson(res, 200, { ok: true, ...payload });
         return;
       }

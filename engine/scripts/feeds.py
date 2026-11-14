@@ -321,6 +321,61 @@ def clear_progress():
         pass
 
 
+# ------------------------------------------------------------- 跨源去重
+
+DEDUP_SIM_THRESHOLD = 0.82       # 标题相似度阈值；≥此值视为同一篇
+
+
+def _normalize_title(t):
+    """标题归一：小写、去标点空白、全角转半角。"""
+    if not t:
+        return ""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", t).lower()
+    out = []
+    for ch in t:
+        cat = unicodedata.category(ch)
+        if cat.startswith("P") or cat.startswith("Z") or cat in ("S",):
+            continue
+        out.append(ch)
+    return "".join(out)
+
+
+def _ngrams(s, n=3):
+    if len(s) < n:
+        return {s} if s else set()
+    return {s[i:i + n] for i in range(len(s) - n + 1)}
+
+
+def _title_sim(a, b):
+    """基于字符 3-gram 的 Dice 系数，0~1。"""
+    ga, gb = _ngrams(a), _ngrams(b)
+    if not ga or not gb:
+        return 0.0
+    return 2 * len(ga & gb) / (len(ga) + len(gb))
+
+
+def _dedup_entries(entries, threshold=DEDUP_SIM_THRESHOLD):
+    """按归一化标题去重；保留最先出现的一条（feeds 已按时间倒序，等价于最新）。"""
+    keep, dup_count = [], 0
+    kept_norm = []
+    for e in entries:
+        norm = _normalize_title(e.get("title", ""))
+        if norm:
+            dup = False
+            for kn in kept_norm:
+                if _title_sim(norm, kn) >= threshold:
+                    dup = True
+                    break
+            if dup:
+                dup_count += 1
+                continue
+            kept_norm.append(norm)
+        keep.append(e)
+    return keep, dup_count
+
+
+
 def _safe_dt_sort_key(x):
     """排序 key：None → epoch；naive → 补 UTC；aware 直接用。"""
     dt = x.get("published")
@@ -401,5 +456,6 @@ def fetch_all(only=None, offline=False, per_source_limit=8, log=print, workers=8
     if not offline and (ok_ids or fail_map):
         record_health(ok_ids, fail_map, log=log)
     entries.sort(key=_safe_dt_sort_key, reverse=True)
+    entries, dup_count = _dedup_entries(entries)
     clear_progress()
-    return entries, failures
+    return entries, failures, dup_count
