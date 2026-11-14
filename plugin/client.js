@@ -24,21 +24,22 @@ window.__ModuleLoader__.load({
     function fmtCount(n) {
       return n >= 10000 ? (n/10000).toFixed(1) + 'w' : n >= 1000 ? (n/1000).toFixed(1) + 'k' : String(n);
     }
-    function timeBucket(published) {
-      if (!published) return '无日期';
+
+    // 时间范围筛选：it.published 是否落在范围内。range: 'all'|'today'|'3d'|'7d'
+    function inTimeRange(published, range) {
+      if (range === 'all') return true;
+      if (!published) return false;
       const d = new Date(published);
-      if (isNaN(d)) return '无日期';
+      if (isNaN(d)) return false;
       const now = new Date();
-      const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const dayMs = 86400000;
-      const diff = Math.floor((t0 - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / dayMs);
-      if (diff <= 0) return '今天';
-      if (diff === 1) return '昨天';
-      if (diff <= 7) return '近 7 天';
-      if (diff <= 30) return '近 30 天';
-      return '更早';
+      if (range === 'today') {
+        const t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return d >= t0;
+      }
+      const days = range === '3d' ? 3 : 7;
+      return (now - d) <= days * 86400000;
     }
-    const TIME_ORDER = ['今天', '昨天', '近 7 天', '近 30 天', '更早', '无日期'];
+    const TIME_RANGE_LABEL = { all: '全部', today: '今日', '3d': '近 3 天', '7d': '近 7 天' };
 
     function todayCount(news) {
       const today = new Date(); today.setHours(0,0,0,0);
@@ -189,7 +190,7 @@ window.__ModuleLoader__.load({
       const [progress, setProgress] = useState(null);
       const [activeTag, setActiveTag] = useState('全部');
   const [viewMode, setViewMode] = useState('list');   // 'list' | 'masonry'
-  const [dim, setDim] = useState('group');            // 'group' | 'time'
+  const [timeRange, setTimeRange] = useState('all');   // 'all' | 'today' | '3d' | '7d'
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
 
       const load = useCallback(async (refresh) => {
@@ -239,10 +240,11 @@ window.__ModuleLoader__.load({
 
       // 搜索关键字：命中标题/摘要/中文译文任一即保留（大小写不敏感）
       const q = query.trim().toLowerCase();
-      // 按激活标签过滤（按分组维度才有标签行）
-      let filtered = (dim === 'group' && activeTag !== '全部')
+      // 分组为主：按激活标签过滤 + 时间范围筛选 + 搜索
+      let filtered = (activeTag !== '全部')
         ? news.filter((it) => it.group === activeTag)
         : news;
+      filtered = filtered.filter((it) => inTimeRange(it.published, timeRange));
       if (q) {
         filtered = filtered.filter((it) => {
           const tr = trans[it.link] || {};
@@ -252,21 +254,26 @@ window.__ModuleLoader__.load({
             || zh.toLowerCase().includes(q);
         });
       }
-      // 分桶 key：group 维度用分组名，time 维度用时间桶
-      const bucketOf = (it) => dim === 'time' ? timeBucket(it.published) : it.group;
+      // 按分组分桶，组内按最新发布时间倒序（无日期放最后）
       const groups = {};
       for (const it of filtered) {
-        const k = bucketOf(it);
-        (groups[k] = groups[k] || []).push(it);
+        (groups[it.group] = groups[it.group] || []).push(it);
       }
+      const sortNewest = (a, b) => {
+        const ta = a.published ? new Date(a.published).getTime() : -1;
+        const tb = b.published ? new Date(b.published).getTime() : -1;
+        return tb - ta;
+      };
+      for (const k of Object.keys(groups)) groups[k].sort(sortNewest);
       // 标签计数（基于全量 news 计算，避免过滤后计数变化）
       const tagCounts = {};
       for (const it of news) tagCounts[it.group] = (tagCounts[it.group] || 0) + 1;
       const tagList = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
-      // 时间桶按固定顺序输出（无日期放最后）
-      const orderedGroups = dim === 'time'
-        ? TIME_ORDER.filter(k => groups[k]).map(k => [k, groups[k]])
-        : Object.entries(groups);
+      // 分组按组内最新一条时间倒序输出（活跃分组排前面）
+      const orderedGroups = Object.entries(groups)
+        .map(([g, items]) => [g, items, items[0] && items[0].published ? new Date(items[0].published).getTime() : -1])
+        .sort((a, b) => b[2] - a[2])
+        .map(([g, items]) => [g, items]);
 
       // 采集进度百分比
       const pct = progress && progress.total
@@ -289,14 +296,11 @@ window.__ModuleLoader__.load({
               onClick: () => setViewMode('masonry'),
             }, '▦ 瀑布流')),
           h('div', { className: 'ain-viewtoggle' },
-            h('button', {
-              className: 'ain-vt' + (dim === 'group' ? ' active' : ''),
-              onClick: () => setDim('group'),
-            }, '按分组'),
-            h('button', {
-              className: 'ain-vt' + (dim === 'time' ? ' active' : ''),
-              onClick: () => setDim('time'),
-            }, '按时间')),
+            ['all', 'today', '3d', '7d'].map((rg) =>
+              h('button', {
+                className: 'ain-vt' + (timeRange === rg ? ' active' : ''),
+                onClick: () => setTimeRange(rg),
+              }, TIME_RANGE_LABEL[rg]))),
           h('button', {
             className: 'ain-btn primary', disabled: refreshing,
             onClick: () => load(true),
@@ -341,7 +345,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'n' }, String(new Set(news.map(x => x.source_id || x.source_name)).size)),
             h('div', { className: 'l' }, '活跃信源'))),
         // 标签过滤（有资讯且不止一个分组时显示）
-        !refreshing && dim === 'group' && news.length > 0 && tagList.length > 0 && h('div', { className: 'ain-tags' },
+        !refreshing && news.length > 0 && tagList.length > 0 && h('div', { className: 'ain-tags' },
           h('button', {
             className: 'ain-tag' + (activeTag === '全部' ? ' active' : ''),
             onClick: () => setActiveTag('全部'),
@@ -383,7 +387,7 @@ window.__ModuleLoader__.load({
             }))
           : orderedGroups.map(([gname, items]) =>
             h('div', { className: 'ain-group', key: gname },
-              h('h3', null, dim === 'time' ? `📅 ${gname}（${items.length}）` : `${gname}（${items.length}）`),
+              h('h3', null, `${gname}（${items.length}）`),
               items.map((it) => {
                 const tr = trans[it.link] || {};
                 const title = tr.zh_title || it.title;
