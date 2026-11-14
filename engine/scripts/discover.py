@@ -279,11 +279,17 @@ def discover_remote(remote_url=None):
 # --------------------------------------------------------------- 待审队列写入
 
 def _verify_one(url):
-    """并发验证单元：返回 (url, ("ok", (count, latest, title, final_url)) | ("err", msg))。"""
+    """并发验证单元：返回 (url, ("ok", (count, latest, title, final_url)) | ("err", msg))。
+
+    捕获网络异常（IncompleteRead/ConnectionError/Timeout 等），失败计 errors 而非崩溃。
+    """
     try:
         return url, ("ok", validate_feed(url))
     except DiscoverError as e:
         return url, ("err", str(e))
+    except Exception as e:
+        # 网络层异常（http.client.IncompleteRead、urllib.error.URLError、socket.timeout 等）
+        return url, ("err", f"{type(e).__name__}: {e}")
 
 
 def verify_many(urls, workers=8, log=None):

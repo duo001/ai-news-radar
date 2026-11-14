@@ -903,6 +903,15 @@
       "enabled": true
     },
     {
+      "id": "www-amazon-science-index-rss",
+      "name": "Amazon Science homepage",
+      "url": "https://www.amazon.science/index.rss",
+      "kind": "rss",
+      "group": "学术研究",
+      "tags": [],
+      "enabled": true
+    },
+    {
       "id": "bair",
       "name": "Berkeley AI Research (BAIR)",
       "url": "https://bair.berkeley.edu/blog/feed.xml",
@@ -912,6 +921,15 @@
         "学术",
         "高校"
       ],
+      "enabled": true
+    },
+    {
+      "id": "www-sciencedaily-com-rss-all-xml",
+      "name": "Latest Science News -- ScienceDaily",
+      "url": "https://www.sciencedaily.com/rss/all.xml",
+      "kind": "rss",
+      "group": "学术研究",
+      "tags": [],
       "enabled": true
     },
     {
@@ -936,6 +954,15 @@
         "science",
         "research"
       ],
+      "enabled": true
+    },
+    {
+      "id": "elifesciences-org-rss-recent-xml",
+      "name": "eLife: latest articles",
+      "url": "https://elifesciences.org/rss/recent.xml",
+      "kind": "rss",
+      "group": "学术研究",
+      "tags": [],
       "enabled": true
     },
     {
@@ -1000,6 +1027,60 @@
       "id": "ollama-com-blog-rss-xml-2",
       "name": "Ollama Blog",
       "url": "https://ollama.com/blog/rss.xml",
+      "kind": "rss",
+      "group": "开源生态",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "github-com-anthropics-claude-code-releases-atom",
+      "name": "Release notes from claude-code",
+      "url": "https://github.com/anthropics/claude-code/releases.atom",
+      "kind": "rss",
+      "group": "开源生态",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "github-com-openai-codex-releases-atom",
+      "name": "Release notes from codex",
+      "url": "https://github.com/openai/codex/releases.atom",
+      "kind": "rss",
+      "group": "开源生态",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "github-com-google-gemini-gemini-cli-releases-atom",
+      "name": "Release notes from gemini-cli",
+      "url": "https://github.com/google-gemini/gemini-cli/releases.atom",
+      "kind": "rss",
+      "group": "开源生态",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "github-com-langchain-ai-langchain-releases-atom",
+      "name": "Release notes from langchain",
+      "url": "https://github.com/langchain-ai/langchain/releases.atom",
+      "kind": "rss",
+      "group": "开源生态",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "github-com-modelcontextprotocol-modelcontextprotocol-release",
+      "name": "Release notes from modelcontextprotocol",
+      "url": "https://github.com/modelcontextprotocol/modelcontextprotocol/releases.atom",
+      "kind": "rss",
+      "group": "开源生态",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "github-com-modelcontextprotocol-servers-releases-atom",
+      "name": "Release notes from servers",
+      "url": "https://github.com/modelcontextprotocol/servers/releases.atom",
       "kind": "rss",
       "group": "开源生态",
       "tags": [],
