@@ -15,6 +15,54 @@ def check(cond, msg):
     print("  ✓", msg)
 
 
+# ---- [15] SQLite 存储层 ----
+def test_sqlite():
+    import tempfile, os
+    import db as dbm
+    tmp = tempfile.mktemp(suffix=".db")
+    try:
+        dbm.init_db(tmp)
+        check(dbm.count(tmp) == 0, "初始空库")
+        # UPSERT 两条（用相对日期，避免硬编码过期）
+        import datetime as _dt
+        d5 = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=5)).isoformat()
+        d1 = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=1)).isoformat()
+        dbm.upsert_news([
+            {"link": "https://a/1", "title": "A1", "summary": "s1", "published": d5,
+             "source_id": "src", "source_name": "Src", "group": "厂商官方", "kind": "rss"},
+            {"link": "https://a/2", "title": "A2", "published": d1,
+             "source_id": "src", "source_name": "Src", "group": "厂商官方"},
+        ], path=tmp)
+        check(dbm.count(tmp) == 2, "写入两条")
+        # 相同 link 覆盖（UPSERT）
+        dbm.upsert_news([
+            {"link": "https://a/1", "title": "A1-新标题", "published": "2026-11-10T00:00:00+00:00",
+             "source_id": "src", "source_name": "Src", "group": "厂商官方", "kind": "rss"},
+        ], path=tmp)
+        check(dbm.count(tmp) == 2, "UPSERT 不新增行")
+        rows = dbm.query_news(path=tmp)
+        check(len(rows) == 2, "查询全表")
+        a1 = next(r for r in rows if r["link"] == "https://a/1")
+        check(a1["title"] == "A1-新标题", "UPSERT 覆盖标题")
+        # 按 group 过滤
+        rows_g = dbm.query_news(path=tmp, group="厂商官方")
+        check(len(rows_g) == 2, "按 group 过滤")
+        # 保留策略：清理 3 天前的，5 天前那条被清，1 天前那条保留
+        pruned = dbm.prune_old(path=tmp, days=3)
+        check(pruned == 1, "prune_old 清理超期条目")
+        check(dbm.count(tmp) == 1, "未超期条目保留")
+        # 空值 published 不被清理（防御）
+        dbm.upsert_news([
+            {"link": "https://b/x", "title": "NoDate", "source_id": "s", "source_name": "S", "group": "其他"},
+        ], path=tmp)
+        check(dbm.count(tmp) == 2, "无日期条目写入（1 天前 + 无日期）")
+        dbm.prune_old(path=tmp, days=1)
+        check(dbm.count(tmp) == 1, "无日期条目不被 prune_old 清除")
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -488,6 +536,8 @@ def main():
         check(h3["old"]["consecutive_failures"] == 0 and "last_error" not in h3["old"],
               "成功采集一次即重置失败计数")
 
+    print("[15] SQLite 存储层")
+    test_sqlite()
     print("\n全部自测通过 ✅")
 
 

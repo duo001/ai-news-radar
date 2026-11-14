@@ -37,6 +37,7 @@ import html_report
 import i18n
 import feeds
 import discover
+import db
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -419,14 +420,36 @@ def cmd_news(args):
 
     不碰 GitHub（GitHub 项目拉取已封存到 run 命令）。
     """
-    try:
-        entries, failures, dup_count = feeds.fetch_all(
-            only=args.only, offline=args.offline,
-            per_source_limit=args.per_source,
-            log=(lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log,
-            workers=getattr(args, "workers", 8))
-    finally:
-        feeds.clear_progress()
+    offline = getattr(args, "offline", False)
+    db.init_db()
+
+    if offline:
+        # 离线模式：DB 就是持久化缓存，跳过采集直接读
+        # DB 空时回退到 feed 缓存兜底（首次离线使用场景）
+        db_entries = db.query_news(days=db.RETENTION_DAYS)
+        if db_entries:
+            entries, failures, dup_count = db_entries, [], 0
+            if not getattr(args, "quiet", False):
+                _log(f"离线模式：从 SQLite 读 {len(db_entries)} 条（跳过采集）")
+        else:
+            # 首次离线使用，DB 为空，走 feed 缓存兜底
+            entries, failures, dup_count = feeds.fetch_all(
+                only=args.only, offline=True,
+                per_source_limit=args.per_source,
+                log=(lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log,
+                workers=getattr(args, "workers", 8))
+            if not getattr(args, "quiet", False):
+                _log(f"离线模式：DB 空，回退到 feed 缓存 {len(entries)} 条")
+    else:
+        # 在线模式：正常采集（带进度追踪）
+        try:
+            entries, failures, dup_count = feeds.fetch_all(
+                only=args.only, offline=False,
+                per_source_limit=args.per_source,
+                log=(lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log,
+                workers=getattr(args, "workers", 8))
+        finally:
+            feeds.clear_progress()
     if not entries:
         if getattr(args, "quiet", False):
             return 1
@@ -436,10 +459,20 @@ def cmd_news(args):
         return 1
 
     news_trans = i18n.load_news_store()
+
+    # ---- SQLite 持久化：增量 UPSERT + 保留策略清理 + 读回 30 天窗口 ----
+    db.upsert_news(_serialize_news(entries))
+    pruned = db.prune_old()
+    # 从 DB 读回最近 RETENTION_DAYS 天，作为插件消费的 JSON 快照
+    # （这样历史资讯不丢、跨采集合并，且 JSON 恒定在 30 天窗口内，体积可控）
+    db_entries = db.query_news(days=db.RETENTION_DAYS)
+    if pruned and not getattr(args, "quiet", False):
+        _log(f"保留策略：清理 {pruned} 条 {db.RETENTION_DAYS} 天前的过期资讯")
+
     payload = {
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "mode": "news-only",
-        "news": _serialize_news(entries),
+        "news": db_entries,
         "news_failures": failures,
         "news_dup": dup_count,
         "news_translations": news_trans,
@@ -459,17 +492,25 @@ def cmd_news(args):
         html_path.write_text(html_report.render_news_html(payload, news_trans), encoding="utf-8")
 
     done, pending, native = i18n.news_coverage(entries)
+    # 展示统计/分组按 DB 回读的 30 天窗口（更贴近插件实际看到的条数）
     groups = {}
-    for e in entries:
+    for e in db_entries:
         groups.setdefault(e["group"], []).append(e)
     if not quiet:
-        print(f"\n{'='*64}\nAI 资讯 {len(entries)} 条（{len(groups)} 个分组，"
-              f"失败信源 {len(failures)} 个）\n标题翻译：已译 {done} / 待译 {pending} / "
-              f"原文即中文 {native}\n{'='*64}")
+        print(f"\n{'='*64}\nAI 资讯 {len(db_entries)} 条（30 天窗口，{len(groups)} 个分组，"
+              f"本次采集新增 {len(entries)} / 失败信源 {len(failures)} 个）\n"
+              f"标题翻译：已译 {done} / 待译 {pending} / 原文即中文 {native}\n{'='*64}")
         for gname, items in groups.items():
             print(f"\n## {gname}（{len(items)}）")
             for it in items[:args.per_source]:
-                date = it["published"].strftime("%m-%d") if it.get("published") else "--"
+                pub = it.get("published")
+                # DB 回读条目 published 是 ISO 字符串，本次采集的是 datetime，统一转 MM-DD
+                if isinstance(pub, str) and len(pub) >= 10:
+                    date = pub[5:10].replace("-", "-")
+                elif pub:
+                    date = pub.strftime("%m-%d")
+                else:
+                    date = "--"
                 tr = news_trans.get(it.get("link", "")) or {}
                 title = tr.get("zh_title") or it["title"]
                 print(f"- [{date}] {title[:72]}  —— {it['source_name']}")
