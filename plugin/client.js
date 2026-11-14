@@ -265,9 +265,19 @@ window.__ModuleLoader__.load({
         return tb - ta;
       };
       for (const k of Object.keys(groups)) groups[k].sort(sortNewest);
-      // 标签计数（基于全量 news 计算，避免过滤后计数变化）
+      // 标签计数：跟随时间范围+搜索（不含分组维度），切换日期后各分组数量同步更新
+      const pool = (timeRange === 'all') ? news : news.filter((it) => inTimeRange(it.published, timeRange));
+      const searchedPool = q
+        ? pool.filter((it) => {
+            const tr = trans[it.link] || {};
+            const zh = (tr.zh_title || '') + ' ' + (tr.zh_summary || '');
+            return (it.title || '').toLowerCase().includes(q)
+              || (it.summary || '').toLowerCase().includes(q)
+              || zh.toLowerCase().includes(q);
+          })
+        : pool;
       const tagCounts = {};
-      for (const it of news) tagCounts[it.group] = (tagCounts[it.group] || 0) + 1;
+      for (const it of searchedPool) tagCounts[it.group] = (tagCounts[it.group] || 0) + 1;
       const tagList = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
       // 分组按组内最新一条时间倒序输出（活跃分组排前面）
       const orderedGroups = Object.entries(groups)

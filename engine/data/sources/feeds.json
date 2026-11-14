@@ -2,6 +2,30 @@
   "$comment": "AI 资讯信源表，参考 KKKKhazix/AIHOT 的 industry/sources.json 精简而来。只保留零 key 的 rss/atom 类型。加信源：照任一对象复制，改 id/name/url/group 即可，脚本启动时自动发现。enabled=false 的源在当前网络环境实测不可达（超时），配置保留，网络恢复后改 true 即可启用，无需改代码。",
   "sources": [
     {
+      "id": "deepseek-harness-releases",
+      "name": "DeepSeek Harness Releases",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/releases.atom",
+      "group": "DSH 生态",
+      "kind": "rss",
+      "tags": [
+        "deepseek",
+        "harness",
+        "release"
+      ]
+    },
+    {
+      "id": "hn-deepseek-harness",
+      "name": "HN: DeepSeek Harness",
+      "url": "https://hnrss.org/newest?q=deepseek+harness",
+      "group": "DSH 生态",
+      "kind": "rss",
+      "tags": [
+        "hn",
+        "deepseek",
+        "harness"
+      ]
+    },
+    {
       "id": "karpathy-github-io-feed-xml",
       "name": "Andrej Karpathy",
       "url": "https://karpathy.github.io/feed.xml",
