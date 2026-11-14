@@ -460,8 +460,11 @@ def cmd_news(args):
 
     news_trans = i18n.load_news_store()
 
-    # ---- SQLite 持久化：增量 UPSERT + 保留策略清理 + 读回 30 天窗口 ----
-    db.upsert_news(_serialize_news(entries))
+    # ---- SQLite 持久化：仅当 entries 含 datetime 对象（本次新采集）才写库 ----
+    # 离线直读 DB 的 entries 已是序列化格式，跳过写入避免重复 ISO 化
+    need_write = not entries or not isinstance(entries[0].get("published"), str)
+    if need_write:
+        db.upsert_news(_serialize_news(entries))
     pruned = db.prune_old()
     # 从 DB 读回最近 RETENTION_DAYS 天，作为插件消费的 JSON 快照
     # （这样历史资讯不丢、跨采集合并，且 JSON 恒定在 30 天窗口内，体积可控）
