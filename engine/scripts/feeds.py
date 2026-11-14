@@ -21,6 +21,8 @@ from xml.etree import ElementTree as ET
 ROOT = Path(__file__).resolve().parent.parent
 FEEDS_CONF = ROOT / "data" / "sources" / "feeds.json"
 CACHE_DIR = ROOT / "data" / "cache" / "feeds"
+CACHE_MAX_ITEMS = 30                    # 写缓存前只保留最新 N 条，防止单 feed 缓存膨胀到 MB 级
+SUMMARY_MAX_CHARS = 800                 # strip_html 前先粗截断 HTML 到此长度（前端最多显示几百字）
 HEALTH_FILE = ROOT / "data" / "source-health.json"
 AUTO_DISABLE_FAILS = 3              # 连续失败次数达到该值自动停用信源
 
@@ -143,6 +145,14 @@ def _strip_html(text):
     """
     if not text:
         return ""
+    # 快速路径：纯文本（无 HTML 标签）跳过全部正则，只做空白压缩
+    if "<" not in text:
+        return _WS_RE.sub(" ", text).strip()
+    # 粗截断：原始 HTML 可能是几十 KB 全文，避免超大字符串跑正则
+    if len(text) > SUMMARY_MAX_CHARS * 2:
+        cut = text.rfind(">", 0, SUMMARY_MAX_CHARS * 2)
+        if cut > 0:
+            text = text[:cut + 1]
     text = _BLOCK_RE.sub(" ", text)
     text = _HTML_COMMENT_RE.sub(" ", text)
     text = text.replace("&nbsp;", " ").replace("&amp;", "&")
@@ -236,6 +246,30 @@ def parse_feed(xml_text, source):
 
 # --------------------------------------------------------------- 拉取
 
+def _rebuild_xml(items, source):
+    """把 items 重打包成 RSS 2.0 XML 写入缓存。只保留前 N 条（已按时间倒序），
+    每条只留 title/link/summary/published 四字段，能从 MB 级砍到 KB 级。
+    """
+    items = items[:CACHE_MAX_ITEMS]
+    esc = (lambda s: (s or "").replace("&", "&amp;").replace("<", "&lt;")
+           .replace(">", "&gt;").replace('"', "&quot;"))
+    out = ['<?xml version="1.0" encoding="UTF-8"?>',
+           '<rss version="2.0"><channel>',
+           f"<title>{esc(source['name'])}</title>",
+           f"<link>{esc(source.get('url', ''))}</link>"]
+    for it in items:
+        pub = it.get("published")
+        pub_str = pub.strftime("%a, %d %b %Y %H:%M:%S GMT") if pub else ""
+        out.append("<item>"
+                   f"<title>{esc(it.get('title', ''))}</title>"
+                   f"<link>{esc(it.get('link', ''))}</link>"
+                   f"<description>{esc(it.get('summary', ''))}</description>"
+                   f"<pubDate>{pub_str}</pubDate>"
+                   "</item>")
+    out.append("</channel></rss>")
+    return "\n".join(out)
+
+
 def _cache_path(source_id):
     return CACHE_DIR / f"{source_id}.xml"
 
@@ -280,7 +314,13 @@ def fetch_one(source, offline=False):
                 raw = resp.read()
                 xml_text = _decode_body(raw, resp.headers.get("Content-Encoding", ""))
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            cache.write_text(xml_text, encoding="utf-8")
+            # 解析后重打包瘦身写回（只留最新 N 条，防止缓存膨胀）
+            try:
+                slim = _rebuild_xml(parse_feed(xml_text, source), source)
+                cache.write_text(slim, encoding="utf-8")
+            except FeedError:
+                # 解析失败保留原始缓存（下次离线还能用）
+                cache.write_text(xml_text, encoding="utf-8")
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             # 回退缓存：新鲜缓存优先，过期也接受
             if cache.exists():
