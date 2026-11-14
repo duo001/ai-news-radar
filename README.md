@@ -37,6 +37,7 @@ DSH（DeepSeek Harness）中以本地 bundle 安装 `plugin/`（package.json 声
 `dsh.bundle.patch` 与 `dsh.client`）。安装后侧栏出现「AI 资讯」面板：
 
 - 资讯 tab：按分组浏览，中文标题优先，一键在线刷新
+- 资讯 tab 顶部：「在线刷新」采集、「自动翻译」把英文标题/摘要走免费机翻通道翻成中文
 - 发现 tab：四条通道（网页种子发现 / 内置 OPML 目录 / 自定义 OPML / AIHOT 远程清单）把候选源
   喂进待审队列，每张卡片显示条目数与最近更新，**逐条「采纳 / 忽略」**，也可「全部采纳」；
   采纳即写回 `feeds.json` 并启用，忽略只留记录
@@ -52,13 +53,15 @@ cd engine/scripts
 python3 radar.py news                 # 并发采集（默认 8 路），出 md+html+json
 python3 radar.py news --offline       # 只用本地缓存
 python3 radar.py doctor               # 环境与信源体检
-python3 radar.py translate --news --todo   # 导出英文标题待译清单
+python3 radar.py translate --news --auto   # ★ 免费机翻：批量英译中直接入库（无需 API key）
+python3 radar.py translate --news --todo   # 导出英文标题待译清单（人工精译用）
+python3 radar.py news --translate          # 采集 + 机翻一条命令走完
 python3 radar.py discover             # 网页自动发现：扫 30 个种子站的 RSS 声明
 python3 radar.py discover --opml-catalog tidings-ai   # 导入社区 OPML 目录（99 源）
 python3 radar.py discover --remote    # 同步 AIHOT 远程开源清单
 python3 radar.py discover --list      # 查看待审队列
 python3 radar.py discover --accept-all  # 采纳全部（验证通过的才写 feeds.json）
-python3 radar.py selftest             # 离线回归（14 组断言）
+python3 radar.py selftest             # 离线回归（16 组断言）
 ```
 
 Python 3.8+，资讯采集纯标准库；GitHub 项目雷达（legacy）额外需要 `requests` + `pyyaml`。
@@ -90,7 +93,8 @@ python3 radar.py discover --accept id1,id2            # 采纳 → 写回 feeds.
 
 - 零 API 密钥：RSS/Atom 直连，单源容错、失败回退缓存、自动处理强制 gzip
 - 信源自动发现四通道 + 待审队列人工决策，健康检查自动停用失效源
-- 翻译流水线本地持久化，按文章链接建库、已译不覆盖，不依赖任何翻译服务
+- 翻译双通道：**免费机翻**（腾讯交互翻译，无需 key，失败降级 MyMemory）+ 人工精译，
+  按文章链接建库、机翻不覆盖精译；面板有「自动翻译」按钮
 - GitHub 项目扫描（四类目 + 六维评分）已封存为 legacy，代码保留可用
 - 插件 Client 半走同源 `fetch` + Host 半 `webServer` 路由，不使用动态沙箱 RPC
 

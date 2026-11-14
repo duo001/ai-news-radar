@@ -36,6 +36,12 @@
 | GET | `/news` | 读 `plugin-news.json`；不存在时先离线跑一次；`?refresh=1` 在线采集，`&perSource=N&only=id` |
 | GET | `/sources` | 读 feeds.json 全量信源 |
 | POST | `/sources` | 信源维护，body `{op, ...}`：`add`/`update`/`toggle`/`remove` |
+| GET | `/news/progress` | 采集进度（`stage/done/total/current`），前端每秒轮询 |
+| GET | `/suggestions` | 待审信源队列（自动发现的候选） |
+| GET | `/opml-catalog` | 内置 OPML 目录别名表 |
+| POST | `/discover` | 触发发现，body `{mode:'web'\|'opml'\|'catalog'\|'remote', target}` |
+| POST | `/suggestions` | 采纳/忽略，body `{op:'accept'\|'ignore'\|'accept-all', ids[]}` |
+| POST | `/translate` | 免费机翻，body `{limit?}`；翻完回写 `plugin-news.json` 并返回最新列表 |
 
 所有响应 `{ok:true,...}` 或 `{ok:false,error}`，`cache-control: no-store`。
 

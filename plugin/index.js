@@ -209,6 +209,33 @@ export async function apply(ctx) {
         return;
       }
 
+      // ---- 自动机翻（免费通道，翻译英文标题/摘要后同步固定文件）----
+      if (req.method === 'POST' && route === '/translate') {
+        if (!enginePresent) {
+          sendJson(res, 503, { ok: false, error: `引擎目录不存在: ${ENGINE_DIR}` });
+          return;
+        }
+        const body = await readJsonBody(req);
+        const limit = Number(body && body.limit) || 0;
+        const argv = ['translate', '--news', '--auto'];
+        if (limit > 0) argv.push('--limit', String(limit));
+        try {
+          // runRadar 成功才 resolve（失败会 reject），这里不再判 exitCode
+          await runRadar(argv, { graceMs: 600000 });
+          newsCache = null;                      // 译文变了，让下次 /news 重读
+          newsCacheAt = 0;
+          const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
+          const deals = await readDeals();
+          sendJson(res, 200, { ok: true,
+            translated: Object.keys(payload.news_translations || {}).length,
+            news: [...dealsAsNewsItems(deals), ...(payload.news || [])],
+            news_translations: payload.news_translations || {} });
+        } catch (e) {
+          sendJson(res, 500, { ok: false, error: String(e.message || e) });
+        }
+        return;
+      }
+
       // ---- 资讯列表（默认离线读缓存；?refresh=1 在线采集）----
       if (req.method === 'GET' && route === '/news') {
         if (!enginePresent) {

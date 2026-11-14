@@ -325,6 +325,19 @@ def cmd_translate(args):
             _log(f"资讯翻译合并完成：新增 {added} 条，跳过 {skipped} 条（空译或已存在）")
             _rerender_news(payload)
             return 0
+        if getattr(args, "auto", False):
+            # 免费机翻通道：批量英译中，直接写入资讯翻译库
+            stat = i18n.auto_translate_news(
+                entries, log=_log,
+                limit=getattr(args, "limit", None),
+                provider=getattr(args, "provider", None))
+            _log(f"机翻完成：处理 {stat['considered']} 条，成功 {stat['translated']} 条，"
+                 f"失败 {stat['failed']} 条，跳过 {stat['skipped']} 条"
+                 f"（通道：{stat['provider']}）")
+            _rerender_news(payload)
+            done, pending, native = i18n.news_coverage(entries)
+            _log(f"当前覆盖率：已译 {done} / 待译 {pending}（原文中文 {native}）")
+            return 0 if stat["translated"] or not stat["considered"] else 1
         todo = i18n.build_news_todo(entries)
         path = i18n.write_news_todo(todo)
         _log(f"资讯待译清单：{path}（{len(todo['items'])} 条）")
@@ -365,7 +378,7 @@ def cmd_translate(args):
 
 
 def _rerender_news(payload):
-    """用最新 news 数据 + 当前资讯翻译库重渲染 md + html。"""
+    """用最新 news 数据 + 当前资讯翻译库重渲染 md + html，并同步插件固定文件。"""
     payload["news_translations"] = i18n.load_news_store()
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     md_path = DATA / f"news-{stamp}.md"
@@ -374,6 +387,18 @@ def _rerender_news(payload):
     html_path.write_text(html_report.render_news_html(
         payload, payload["news_translations"]), encoding="utf-8")
     _log(f"资讯报告已刷新: {md_path} / {html_path}")
+    # 工作台插件读的是固定路径的 plugin-news.json，翻译后要同步一次，
+    # 否则面板刷新也看不到新译文（Data flow: translate → plugin-news.json → 面板）
+    plugin_json = DATA / "plugin-news.json"
+    if plugin_json.exists():
+        try:
+            saved = json.loads(plugin_json.read_text(encoding="utf-8"))
+            saved["news_translations"] = payload["news_translations"]
+            plugin_json.write_text(
+                json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
+            _log("插件固定文件已同步译文")
+        except (json.JSONDecodeError, OSError) as exc:
+            _log(f"插件固定文件同步失败：{exc}")
 
 
 def _write_reports(payload, cats, stamp):
@@ -533,6 +558,14 @@ def cmd_news(args):
         jo.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         if not quiet:
             _log(f"JSON 固定路径副本: {jo}")
+    if getattr(args, "translate", False) and payload.get("news"):
+        stat = i18n.auto_translate_news(
+            payload["news"], log=(None if quiet else _log),
+            limit=getattr(args, "translate_limit", None))
+        if not quiet:
+            _log(f"机翻：成功 {stat['translated']} / 失败 {stat['failed']} / "
+                 f"跳过 {stat['skipped']}（通道：{stat['provider']}）")
+            pending = i18n.news_coverage(payload["news"])[1]
     if pending and not quiet:
         _log(f"有 {pending} 条英文标题待译：python3 radar.py translate --news --todo")
     return 0
@@ -633,6 +666,12 @@ def build_parser():
     t.add_argument("--coverage", action="store_true", help="只看翻译覆盖率")
     t.add_argument("--news", action="store_true",
                    help="走资讯翻译通道（标题/简介，按文章 link 存 news_translations.json）；不带则走仓库简介通道")
+    t.add_argument("--auto", action="store_true",
+                   help="（配合 --news）走免费机翻通道自动翻译并直接入库，无需人工填表")
+    t.add_argument("--limit", type=int, default=None,
+                   help="（配合 --auto）本次最多翻译多少条，默认全部")
+    t.add_argument("--provider", default=None, choices=["transmart", "mymemory"],
+                   help="（配合 --auto）指定翻译通道，默认自动降级")
     t.set_defaults(func=cmd_translate)
     sub.add_parser("render", help="【封存】用最新 GitHub run 数据和翻译库重新渲染报告").set_defaults(func=cmd_render)
     n = sub.add_parser("news", help="★ 主力命令：并发采集 RSS/Atom AI 资讯，出 md + html + json 并套用中文翻译")
@@ -645,6 +684,10 @@ def build_parser():
                    help="可选：把资讯 JSON 另写到固定路径（工作台插件用，避免时间戳文件名）")
     n.add_argument("--quiet", action="store_true",
                    help="静默模式：不打印分组摘要、不写时间戳三件套（工作台插件用，配合 --json-out）")
+    n.add_argument("--translate", action="store_true",
+                   help="采集后自动走免费机翻通道翻译英文标题/摘要")
+    n.add_argument("--translate-limit", type=int, default=None,
+                   help="（配合 --translate）本次最多翻译多少条，默认全部")
     n.set_defaults(func=cmd_news)
     d = sub.add_parser(
         "discover",

@@ -192,6 +192,7 @@ window.__ModuleLoader__.load({
   const [viewMode, setViewMode] = useState('list');   // 'list' | 'masonry'
   const [timeRange, setTimeRange] = useState('all');   // 'all' | 'today' | '3d' | '7d'
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
+      const [translating, setTranslating] = useState(false); // 自动机翻进行中
 
       const load = useCallback(async (refresh) => {
         if (refresh) setRefreshing(true); else setLoading(true);
@@ -206,6 +207,20 @@ window.__ModuleLoader__.load({
           setRefreshing(false);
         }
       }, []);
+
+      // 自动机翻：把英文标题/摘要走免费通道翻成中文
+      const runTranslate = useCallback(async () => {
+        setTranslating(true);
+        setError('');
+        try {
+          await api('/translate', { method: 'POST', body: '{}' });
+          await load(false);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setTranslating(false);
+        }
+      }, [load]);
 
       // 采集期间每秒轮询进度；完成后关定时器并 reload
       useEffect(() => {
@@ -312,9 +327,14 @@ window.__ModuleLoader__.load({
                 onClick: () => setTimeRange(rg),
               }, TIME_RANGE_LABEL[rg]))),
           h('button', {
-            className: 'ain-btn primary', disabled: refreshing,
+            className: 'ain-btn primary', disabled: refreshing || translating,
             onClick: () => load(true),
-          }, refreshing ? '采集中…' : '在线刷新')),
+          }, refreshing ? '采集中…' : '在线刷新'),
+          h('button', {
+            className: 'ain-btn', disabled: translating || refreshing,
+            onClick: () => runTranslate(),
+            title: '把英文标题和摘要自动翻译成中文（免费通道，无需 API key）',
+          }, translating ? '翻译中…' : '自动翻译')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
           h('input', {

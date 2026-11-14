@@ -237,3 +237,77 @@ def news_coverage(entries):
         else:
             pending += 1
     return done, pending, native
+
+
+# ============================================================
+# 资讯自动机翻（免费通道，见 mt.py）
+# ============================================================
+
+def auto_translate_news(entries, log=None, limit=None, provider=None):
+    """把待译的英文资讯标题+摘要走免费机翻写入资讯翻译库。
+
+    参数
+    ----
+    entries : 资讯条目列表（含 link/title/summary）
+    limit   : 本次最多处理多少条（None = 全部）
+    provider: 指定翻译通道（None = 自动降级链）
+
+    返回统计 dict：{considered, translated, failed, skipped, provider}
+    """
+    import mt as mt_mod
+
+    store = load_news_store()
+    todo = build_news_todo(entries)["items"]
+    if limit:
+        todo = todo[:limit]
+
+    stat = {"considered": len(todo), "translated": 0, "failed": 0,
+            "skipped": 0, "provider": "none"}
+    if not todo:
+        return stat
+
+    # 收集待译文本：每条先标题、再摘要（摘要截断，省额度）
+    texts, slots = [], []
+    for it in todo:
+        title = (it.get("source_title") or "").strip()
+        summary = (it.get("source_summary") or "").strip()[:300]
+        if not title:
+            stat["skipped"] += 1
+            continue
+        slots.append({"link": it["link"], "title_idx": len(texts),
+                      "summary_idx": None, "title": title,
+                      "summary_src": summary})
+        texts.append(title)
+        if summary:
+            slots[-1]["summary_idx"] = len(texts)
+            texts.append(summary)
+
+    if not texts:
+        return stat
+
+    if log:
+        log(f"机翻 {len(slots)} 条（{len(texts)} 段文本）……")
+    out, used = mt_mod.translate_batch(texts, log=log, provider=provider)
+    stat["provider"] = used
+
+    for slot in slots:
+        zh_title = out[slot["title_idx"]]
+        if not zh_title:
+            stat["failed"] += 1
+            continue
+        zh_summary = ""
+        if slot["summary_idx"] is not None:
+            zh_summary = out[slot["summary_idx"]] or ""
+        store[slot["link"]] = {
+            "zh_title": zh_title,
+            "zh_summary": zh_summary,
+            "source_title": slot["title"],
+            "source_summary": slot["summary_src"],
+            "source": f"auto:{used}",
+            "translated_at": __import__("datetime").datetime.now()
+                              .astimezone().isoformat(timespec="seconds"),
+        }
+        stat["translated"] += 1
+
+    save_news_store(store)
+    return stat

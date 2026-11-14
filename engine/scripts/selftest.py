@@ -63,6 +63,80 @@ def test_sqlite():
             os.remove(tmp)
 
 
+# ---- [16] 免费机翻通道（不联网，mock 翻译调用）----
+def test_mt():
+    import tempfile, os, json, pathlib as _pl
+    import i18n, mt
+
+    # 1) 双预算切片：条数上限与字符上限都生效
+    chunks = mt._chunk_texts(["a" * 100] * 10, 4, 250)
+    check(len(chunks) == 5, "字符预算把每批压到 2 条（100+100=200，第三条 300>250）")
+    check(sum(len(c) for c in chunks) == 10, "切片不丢文本")
+    check(all(len(c) <= 4 for c in chunks), "切片遵守条数上限")
+    check(all(sum(len(t) for t in c) <= 250 for c in chunks), "切片遵守字符上限")
+    # 单条超预算也不死循环（自成一批）
+    big = mt._chunk_texts(["x" * 999], 4, 250)
+    check(big == [["x" * 999]], "超长单条自成一批")
+
+    tmp = tempfile.mktemp(suffix=".json")
+    old_store = i18n.NEWS_STORE
+    i18n.NEWS_STORE = _pl.Path(tmp)
+    real_batch = mt.translate_batch
+    calls = {}
+
+    def fake_batch(texts, log=None, provider=None):
+        calls["texts"] = list(texts)
+        out = []
+        for t in texts:
+            out.append("译:" + t[:20])
+        return out, "fake"
+
+    mt.translate_batch = fake_batch
+    try:
+        entries = [
+            {"link": "https://x/1", "title": "Hello world", "summary": "Sum one"},
+            {"link": "https://x/2", "title": "Second title", "summary": ""},
+            {"link": "https://x/3", "title": "已经是中文标题", "summary": ""},
+            {"link": "https://x/4", "title": "", "summary": "no title"},
+        ]
+        stat = i18n.auto_translate_news(entries, log=lambda *_: None)
+        check(stat["translated"] == 2, "英文标题翻 2 条（中文标题/空标题跳过）")
+        check(stat["provider"] == "fake", "记录所用通道")
+        # 标题 + 摘要都送翻
+        check(len(calls["texts"]) == 3, "提交 2 标题 + 1 摘要共 3 段")
+        store = json.loads(_pl.Path(tmp).read_text(encoding="utf-8"))
+        check(len(store) == 2 and "https://x/1" in store, "译文入库且 key 是 link")
+        check(store["https://x/1"]["zh_summary"].startswith("译:"), "摘要译文一并入库")
+        check(store["https://x/1"]["source"] == "auto:fake", "标记来源通道")
+
+        # 2) 幂等：已译的不再送翻
+        before = len(calls["texts"])
+        stat2 = i18n.auto_translate_news(entries, log=lambda *_: None)
+        check(stat2["translated"] == 0 and len(calls["texts"]) == before,
+              "已译条目不重复送翻（幂等）")
+
+        # 3) limit 生效
+        more = [{"link": f"https://y/{i}", "title": f"Title {i}", "summary": ""}
+                for i in range(5)]
+        stat3 = i18n.auto_translate_news(more, log=lambda *_: None, limit=2)
+        check(stat3["considered"] == 2 and stat3["translated"] == 2, "limit 限制本次条数")
+
+        # 4) 通道全失败时不入库
+        mt.translate_batch = lambda texts, log=None, provider=None: (
+            [None] * len(texts), "none")
+        stat4 = i18n.auto_translate_news(
+            [{"link": "https://z/1", "title": "Fails", "summary": ""}],
+            log=lambda *_: None)
+        check(stat4["translated"] == 0 and stat4["failed"] == 1, "翻译失败不写库")
+        store2 = json.loads(_pl.Path(tmp).read_text(encoding="utf-8"))
+        check("https://z/1" not in store2, "失败条目不污染翻译库")
+    finally:
+        mt.translate_batch = real_batch
+        i18n.NEWS_STORE = old_store
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -538,6 +612,9 @@ def main():
 
     print("[15] SQLite 存储层")
     test_sqlite()
+
+    print("[16] 免费机翻通道")
+    test_mt()
     print("\n全部自测通过 ✅")
 
 
