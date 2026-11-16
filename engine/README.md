@@ -75,7 +75,7 @@ ai-git-radar/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图
 └── data/
-    ├── sources/feeds.json   # ★ RSS/Atom 信源表（14 启用/4 停用，加源只改这里）
+    ├── sources/feeds.json   # ★ RSS/Atom 信源表（131 源/13 组，加源只改这里）
     ├── cache/feeds/         # feed XML 缓存（3h TTL，离线回退）
     ├── sample-news.*        # 资讯示例批次（42 条，100% 中文翻译）
     ├── news_translations.json  # 资讯翻译库（按文章 link）
