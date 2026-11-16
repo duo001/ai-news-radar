@@ -4,6 +4,10 @@ AI 资讯工作台：并发聚合一批零密钥 RSS/Atom AI 资讯信源，清�
 既可作为 **DSH 工作台插件**常驻侧边栏（资讯浏览 + 信源自动发现 + 可视化维护），也可作为
 **Agent Skill / 命令行工具**独立运行。
 
+[![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
+
+> 每次 push 自动在 Python 3.10 / 3.12 上跑 20 组离线自测 + 语法检查 + 信源配置校验。
+
 ## 仓库结构（monorepo）
 
 ```

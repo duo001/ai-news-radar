@@ -1,0 +1,64 @@
+name: selftest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 语法检查（Python）
+        run: python -m compileall -q engine/scripts
+
+      - name: 语法检查（插件 JS）
+        run: |
+          if command -v node >/dev/null 2>&1; then
+            node --check plugin/client.js
+            node --check plugin/index.js
+          else
+            echo "node 不可用，跳过 JS 语法检查"
+          fi
+
+      - name: 离线自测（20 组断言）
+        working-directory: engine
+        run: python scripts/selftest.py
+
+      - name: 信源配置校验
+        working-directory: engine
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          feeds = json.loads(pathlib.Path("data/sources/feeds.json").read_text(encoding="utf-8"))
+          src = feeds["sources"] if isinstance(feeds, dict) else feeds
+          ids, urls = set(), set()
+          problems = []
+          for s in src:
+              sid, url = s.get("id"), s.get("url")
+              if not sid or not url:
+                  problems.append(f"缺 id 或 url: {s}")
+              if sid in ids:
+                  problems.append(f"重复 id: {sid}")
+              if url in urls:
+                  problems.append(f"重复 url: {url}")
+              ids.add(sid); urls.add(url)
+              if not url.startswith(("http://", "https://")):
+                  problems.append(f"非法 url 协议: {url}")
+          print(f"信源 {len(src)} 个，启用 {sum(1 for s in src if s.get('enabled', True))}")
+          if problems:
+              print("\n".join(problems)); sys.exit(1)
+          print("配置校验通过")
+          PY
