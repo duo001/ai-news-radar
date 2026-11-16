@@ -240,6 +240,12 @@ def parse_feed(xml_text, source):
                           "summary": _strip_html(summary), "published": pub})
 
     if not items:
+        # 区分「合法的空 feed」与「根本不是 feed」：arXiv 在周末不发布公告，
+        # rss.arxiv.org 会返回含 <channel><skip><day>Saturday</day>… 但零 item 的
+        # 合法 RSS。这类不能算采集失败，否则连续 3 天会被健康检查自动停用（见坑 34）。
+        root_tag = root.tag.split("}")[-1] if isinstance(root.tag, str) else ""
+        if root_tag in ("rss", "feed", "RDF"):
+            return []
         raise FeedError("未解析到任何 item/entry（页面结构变化或非 feed）")
     return items
 
@@ -316,8 +322,11 @@ def fetch_one(source, offline=False):
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             # 解析后重打包瘦身写回（只留最新 N 条，防止缓存膨胀）
             try:
-                slim = _rebuild_xml(parse_feed(xml_text, source), source)
-                cache.write_text(slim, encoding="utf-8")
+                parsed = parse_feed(xml_text, source)
+                # 空 feed（如 arXiv 周末无公告）不要覆盖缓存，否则离线时
+                # 会丢掉上一批真实的论文条目（见坑 34）
+                if parsed:
+                    cache.write_text(_rebuild_xml(parsed, source), encoding="utf-8")
             except FeedError:
                 # 解析失败保留原始缓存（下次离线还能用）
                 cache.write_text(xml_text, encoding="utf-8")

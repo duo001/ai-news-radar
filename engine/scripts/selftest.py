@@ -544,6 +544,23 @@ def main():
     except feeds.FeedError:
         print("  ✓ 坏 XML 抛 FeedError（单源容错）")
 
+    # 合法但零条目的 feed（arXiv 周末无公告）返回 [] 而非抛错，
+    # 否则连续 3 次会被健康检查误判自动停用（坑 34）
+    empty_rss = ('<?xml version="1.0"?><rss version="2.0"><channel>'
+                 '<title>cs.AI updates on arXiv.org</title>'
+                 '<skip><day>Saturday</day><day>Sunday</day></skip>'
+                 '</channel></rss>')
+    check(feeds.parse_feed(empty_rss, src) == [], "合法空 feed 返回空列表不抛错")
+    empty_atom = ('<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">'
+                  '<title>empty</title></feed>')
+    check(feeds.parse_feed(empty_atom, src) == [], "合法空 Atom 返回空列表不抛错")
+    # 非 feed 的 HTML 页面（含 <rss 字样的错误页除外）仍要判失败
+    try:
+        feeds.parse_feed("<html><body>404 Not Found</body></html>", src)
+        raise AssertionError("HTML 页面应抛 FeedError")
+    except feeds.FeedError:
+        print("  ✓ 非 feed 的 HTML 页面仍判失败")
+
     # style/script 整块与 CSS 注释清洗（GitHub 字体版权、MS 样式混入的坑）
     noisy = ('<style>.a{color:red}</style>/* Copyright Font */'
              '<p>Real <b>summary</b> here.</p><script>var x=1;</script><!-- c -->')

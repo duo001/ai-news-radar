@@ -1103,7 +1103,7 @@
     {
       "id": "tomshardware",
       "name": "Tom's Hardware",
-      "url": "https://www.tomshardware.com/feeds/",
+      "url": "https://www.tomshardware.com/feeds/all",
       "kind": "rss",
       "group": "硬件与芯片",
       "tags": [
