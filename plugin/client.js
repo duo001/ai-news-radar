@@ -262,6 +262,20 @@ window.__ModuleLoader__.load({
   font-size:10px; padding:1px 4px; border-radius:5px; font-family:inherit; }
 .ain-watch-conf-btn:hover { background:#ffe7ba; color:#d46b08; }
 .ain-watch-conf-btn.danger:hover { background:#fff1f0; color:#cf1322; }
+/* 代理配置面板 */
+.ain-proxy-editor { border:1px solid #91caff; background:#f0f8ff; border-radius:10px;
+  padding:10px 12px; margin:-4px 0 8px; display:flex; flex-direction:column; gap:8px; }
+.ain-proxy-row { display:flex; align-items:center; gap:8px; }
+.ain-proxy-label { font-size:11px; color:#666; min-width:56px; flex-shrink:0; }
+.ain-proxy-row input { flex:1; padding:5px 10px; border:1px solid #d9d9d9; border-radius:7px;
+  font-size:12px; font-family:inherit; min-width:0; }
+.ain-proxy-row input:focus { outline:none; border-color:#0958d9; }
+.ain-proxy-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ain-proxy-result { font-size:11px; padding:5px 9px; border-radius:6px; }
+.ain-proxy-result.ok { background:#f6ffed; color:#389e0d; border:1px solid #b7eb8f; }
+.ain-proxy-result.fail { background:#fff1f0; color:#cf1322; border:1px solid #ffa39e; }
+.ain-proxy-hint { font-size:11px; color:#8c8c8c; line-height:1.6; }
+.ain-proxy-on { border-color:#0958d9 !important; color:#0958d9 !important; }
 .ain-modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
   display:flex; align-items:center; justify-content:center; padding:24px; }
 .ain-modal { width:min(820px, 94vw); max-height:86vh; display:flex; flex-direction:column;
@@ -355,6 +369,13 @@ window.__ModuleLoader__.load({
       const [watchInput, setWatchInput] = useState('');
       const [watchBusy, setWatchBusy] = useState(false);
       const [watchEditorOpen, setWatchEditorOpen] = useState(false);
+      // 代理配置：proxy.json 决定全部外网请求出口
+      const [proxyOpen, setProxyOpen] = useState(false);
+      const [proxyConf, setProxyConf] = useState({ enabled: false, url: '', no_proxy: '' });
+      const [proxyInput, setProxyInput] = useState('');
+      const [proxyNoProxy, setProxyNoProxy] = useState('');
+      const [proxyBusy, setProxyBusy] = useState(false);
+      const [proxyTest, setProxyTest] = useState(null); // {ok,error,elapsed_ms,sample} | null
       // 已读状态本地覆盖层：{link: true/false}，服务端返回值作为初值
       const [readMap, setReadMap] = useState({});
 
@@ -390,6 +411,49 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         api('/watch').then((d) => setWatchConf(d.keywords || [])).catch(() => {});
       }, []);
+
+      // 载入代理配置
+      useEffect(() => {
+        api('/proxy').then((d) => {
+          setProxyConf({ enabled: !!d.enabled, url: d.url || '', no_proxy: d.no_proxy || '' });
+          setProxyInput(d.url || '');
+          setProxyNoProxy(d.no_proxy || '');
+        }).catch(() => {});
+      }, []);
+
+      // 保存代理配置（enabled=true 时服务端会校验地址格式）
+      const saveProxy = useCallback(async (enabled) => {
+        setProxyBusy(true);
+        setError('');
+        try {
+          const d = await api('/proxy', {
+            method: 'POST',
+            body: JSON.stringify({ enabled, url: proxyInput.trim(), noProxy: proxyNoProxy.trim() }),
+          });
+          setProxyConf({ enabled: !!d.enabled, url: d.url || '', no_proxy: d.no_proxy || '' });
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setProxyBusy(false);
+        }
+      }, [proxyInput, proxyNoProxy]);
+
+      // 测试代理连通性（走引擎同一套 netcfg 实现）
+      const testProxyConn = useCallback(async () => {
+        const url = proxyInput.trim();
+        if (!url) { setProxyTest({ ok: false, error: '请先填写代理地址' }); return; }
+        setProxyBusy(true);
+        setProxyTest(null);
+        try {
+          setProxyTest(await api('/proxy/test', {
+            method: 'POST', body: JSON.stringify({ url }),
+          }));
+        } catch (err) {
+          setProxyTest({ ok: false, error: err.message });
+        } finally {
+          setProxyBusy(false);
+        }
+      }, [proxyInput]);
 
       // 关注词增删/启停：写服务端后重拉配置与资讯（服务端会离线重渲染 watch_hits）
       const watchOp = useCallback(async (op, term, extra) => {
@@ -601,7 +665,15 @@ window.__ModuleLoader__.load({
             className: 'ain-btn', disabled: weeklyBusy || refreshing,
             onClick: () => runWeekly(),
             title: '把近 7 天资讯按主题汇总成 Markdown 周报（含关注词专区）',
-          }, weeklyBusy ? '生成中…' : '📰 周报')),
+          }, weeklyBusy ? '生成中…' : '📰 周报'),
+          h('button', {
+            className: 'ain-btn' + (proxyOpen ? ' primary' : '')
+              + (proxyConf.enabled ? ' ain-proxy-on' : ''),
+            onClick: () => setProxyOpen(!proxyOpen),
+            title: proxyConf.enabled
+              ? `当前通过代理 ${proxyConf.url} 拉取资讯，点击管理`
+              : '配置代理：填入代理地址后所有信源与机翻请求都走代理',
+          }, proxyConf.enabled ? '🌐 代理已开' : '🌐 网络')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
           h('input', {
@@ -716,9 +788,49 @@ window.__ModuleLoader__.load({
                   title: '删除',
                   onClick: () => watchOp('remove', k.term),
                 }, '删除'))))),
+        // 代理配置面板：填地址 → 测试 → 启用，之后所有采集/机翻都走该出口
+        proxyOpen && h('div', { className: 'ain-proxy-editor', key: 'proxy-editor' },
+          h('div', { className: 'ain-proxy-row' },
+            h('span', { className: 'ain-proxy-label' }, '代理地址'),
+            h('input', {
+              value: proxyInput,
+              placeholder: 'http://127.0.0.1:7890（仅支持 http/https，不支持 socks）',
+              disabled: proxyBusy,
+              onChange: (ev) => setProxyInput(ev.target.value),
+            })),
+          h('div', { className: 'ain-proxy-row' },
+            h('span', { className: 'ain-proxy-label' }, '直连白名单'),
+            h('input', {
+              value: proxyNoProxy,
+              placeholder: '可选：不走代理的主机，逗号分隔，如 localhost,127.0.0.1',
+              disabled: proxyBusy,
+              onChange: (ev) => setProxyNoProxy(ev.target.value),
+            })),
+          h('div', { className: 'ain-proxy-actions' },
+            h('button', {
+              className: 'ain-btn', disabled: proxyBusy || !proxyInput.trim(),
+              onClick: testProxyConn,
+            }, proxyBusy ? '测试中…' : '测试连通'),
+            h('button', {
+              className: 'ain-btn primary',
+              disabled: proxyBusy || (proxyInput.trim() === '' && !proxyConf.enabled),
+              onClick: () => saveProxy(true),
+            }, '启用并保存'),
+            proxyConf.enabled && h('button', {
+              className: 'ain-btn', disabled: proxyBusy,
+              onClick: () => saveProxy(false),
+            }, '关闭代理')),
+          proxyTest && h('div', {
+            className: 'ain-proxy-result ' + (proxyTest.ok ? 'ok' : 'fail'),
+          }, proxyTest.ok
+            ? `✅ 连通（${proxyTest.elapsed_ms} ms）${proxyTest.sample ? ` · ${proxyTest.sample}` : ''}`
+            : `❌ ${proxyTest.error || '连接失败'}`),
+          h('div', { className: 'ain-proxy-hint' },
+            proxyConf.enabled
+              ? `当前：已启用，出口 ${proxyConf.url}。若不生效请重启插件或点「在线刷新」重试。`
+              : '当前：直连。启用后 RSS 采集、结构化采集器、信源发现与机翻全部走该代理。')),
         failures.length > 0 && h('div', { className: 'ain-err' },
-          `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
-        news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
+          `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),        news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
           : filtered.length === 0 ? h('div', { className: 'ain-empty' },
               q ? `没有匹配「${query.trim()}」的资讯`
                 : unreadOnly ? '没有未读资讯了，点「只看未读」切回来'

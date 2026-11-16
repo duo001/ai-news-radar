@@ -509,6 +509,119 @@ def test_sourcecheck():
     check(sourcecheck.orphan_health(feeds_doc, health) == ["gone"], "体检：识别 health 孤儿")
 
 
+def test_glossary():
+    import glossary
+    # Agent → 智能体：需原文有 agent 词根
+    zh, hits = glossary.normalize_text("把计算机交给代理", "give your agents a computer")
+    check(zh == "把计算机交给智能体" and hits, "术语：agent 语境下代理→智能体")
+    # 无 agent 词根时不动（网络代理语义）
+    zh2, hits2 = glossary.normalize_text("通过代理服务器访问", "access via a proxy server")
+    check(zh2 == "通过代理服务器访问" and not hits2, "术语：非 AI 语境不误伤代理服务器")
+    # 代理服务器/代理人等组合词护栏
+    zh3, _ = glossary.normalize_text("这家代理商与代理人", "these agents")
+    check("代理" in zh3, "术语：代理商/代理人组合词不被替换")
+    # 冗余叠词消除
+    zh4, _ = glossary.normalize_text("人工智能代理的蜜罐", "AI agent honeypot")
+    check(zh4 == "智能体的蜜罐", "术语：消除「人工智能智能体」叠词")
+    # Token：LLM 语境保留英文
+    zh5, _ = glossary.normalize_text("每秒生成 2100 个代币", "2100 tokens per second")
+    check("Token" in zh5, "术语：LLM 语境 token→Token")
+    zh6, hits6 = glossary.normalize_text("检测服务令牌", "detect service tokens")
+    check(zh6 == "检测服务令牌" and not hits6, "术语：安全令牌语境不改写")
+    # Prompt → 提示词
+    zh7, _ = glossary.normalize_text("从不命中提示缓存", "never hits prompt cache")
+    check("提示词缓存" in zh7, "术语：prompt→提示词")
+    # 幂等：二次归一化不再变化（防「提示词词」类叠词）
+    zh8, _ = glossary.normalize_text(zh7, "never hits prompt cache")
+    check(zh8 == zh7, "术语：归一化幂等")
+    # 只改机翻条目，人工精译不动
+    store = {
+        "u1": {"zh_title": "交给代理", "source_title": "give agents a computer", "source": "auto:transmart"},
+        "u2": {"zh_title": "交给代理", "source_title": "give agents a computer"},
+    }
+    stats = glossary.normalize_store(store, dry_run=False)
+    check(stats["changed"] == 1 and store["u1"]["zh_title"] == "交给智能体"
+          and store["u2"]["zh_title"] == "交给代理", "术语：只归一化机翻条目，人工精译不动")
+
+
+def test_netcfg():
+    import tempfile, pathlib as _pl
+    import netcfg
+    tmp = _pl.Path(tempfile.mktemp(suffix=".json"))
+    orig = netcfg.PROXY_CONF
+    netcfg.PROXY_CONF = tmp
+    try:
+        check(netcfg.load_proxy()["enabled"] is False, "代理：无配置时默认直连")
+        check(netcfg.opener() is None, "代理：直连时 opener 为 None")
+        for bad in ("socks5://127.0.0.1:1080", "127.0.0.1:7890", "http://", ""):
+            try:
+                netcfg.validate_url(bad)
+                check(False, f"代理：非法地址应拒绝 {bad}")
+            except ValueError:
+                pass
+        check(netcfg.validate_url("http://127.0.0.1:7890") == "http://127.0.0.1:7890",
+              "代理：合法 http 地址通过")
+        netcfg.save_proxy(True, "http://127.0.0.1:7890", "localhost")
+        conf = netcfg.load_proxy()
+        check(conf["enabled"] and conf["url"].endswith("7890"), "代理：保存后读回一致")
+        check(netcfg.opener() is not None, "代理：启用后 opener 非空")
+        check(netcfg._bypassed("http://localhost:8080/x"), "代理：no_proxy 命中走直连")
+        check(not netcfg._bypassed("https://example.com/x"), "代理：白名单外走代理")
+        check("代理" in netcfg.describe(), "代理：describe 反映启用状态")
+        netcfg.save_proxy(False, "http://127.0.0.1:7890")
+        check(netcfg.opener() is None and netcfg.load_proxy()["url"].endswith("7890"),
+              "代理：关闭后仍保留地址便于下次开启")
+        # 测试函数对不可达代理返回 ok=False 而不是抛异常
+        r = netcfg.test_proxy("http://127.0.0.1:1")
+        check(r["ok"] is False and "error" in r, "代理：测试连通失败时返回错误而非抛异常")
+    finally:
+        netcfg.PROXY_CONF = orig
+        netcfg.save_proxy(False, "")  # 还原缓存与文件
+        tmp.unlink(missing_ok=True)
+
+
+def test_backup():
+    import tempfile, zipfile, json as _json
+    import pathlib as _pl
+    import backup
+    tmpdir = _pl.Path(tempfile.mkdtemp())
+    orig_data = backup.DATA
+    backup.DATA = tmpdir
+    try:
+        (tmpdir / "sources").mkdir()
+        (tmpdir / "news_translations.json").write_text('{"a":1}', encoding="utf-8")
+        (tmpdir / "sources" / "watch.json").write_text('{"keywords":[]}', encoding="utf-8")
+        out = backup.create_backup(log=None)
+        check(out.exists() and out.suffix == ".zip", "备份：生成 zip")
+        with zipfile.ZipFile(out) as zf:
+            names = zf.namelist()
+            manifest = _json.loads(zf.read("backup-manifest.json").decode("utf-8"))
+        check("news_translations.json" in names and "sources/watch.json" in names,
+              "备份：包含翻译库与关注词配置")
+        check("news.db" not in names and "news.db" in manifest["missing"],
+              "备份：缺失文件记入 manifest 而非报错")
+        # 恢复：先破坏原文件，再从备份还原
+        (tmpdir / "news_translations.json").write_text("{}", encoding="utf-8")
+        backup.restore_backup(out, log=None)
+        check((tmpdir / "news_translations.json").read_text(encoding="utf-8") == '{"a":1}',
+              "备份：恢复还原文件内容")
+        check(len(backup.list_backups()) >= 1, "备份：能列出备份文件")
+        # 空 data 目录时拒绝生成空备份
+        empty = _pl.Path(tempfile.mkdtemp())
+        orig2 = backup.DATA
+        backup.DATA = empty
+        try:
+            try:
+                backup.create_backup(log=None)
+                check(False, "备份：无资产应报错")
+            except RuntimeError:
+                pass
+        finally:
+            backup.DATA = orig2
+    finally:
+        backup.DATA = orig_data
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -1016,6 +1129,11 @@ def main():
     print("[19] 近似去重、分组兜底与信源体检")
     test_dedup_and_fallback()
     test_sourcecheck()
+
+    print("[20] 术语归一化、代理与资产备份")
+    test_glossary()
+    test_netcfg()
+    test_backup()
     print("\n全部自测通过 ✅")
 
 

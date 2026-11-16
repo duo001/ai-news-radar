@@ -17,6 +17,7 @@
 import json
 import time
 import urllib.error
+import netcfg
 import urllib.parse
 import urllib.request
 
@@ -64,7 +65,7 @@ def _transmart_one_batch(texts):
             "Referer": "https://transmart.qq.com/zh-CN/index",
             "Origin": "https://transmart.qq.com",
         })
-    with urllib.request.urlopen(req, timeout=TRANSMART_TIMEOUT) as resp:
+    with netcfg.open_url(req, timeout=TRANSMART_TIMEOUT) as resp:
         payload = json.loads(resp.read().decode("utf-8", "replace"))
     ret = (payload.get("header") or {}).get("ret_code")
     if ret != "succ":
@@ -122,7 +123,7 @@ def _mymemory_one(text):
         params["de"] = MYMEMORY_EMAIL
     url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=MYMEMORY_TIMEOUT) as resp:
+    with netcfg.open_url(req, timeout=MYMEMORY_TIMEOUT) as resp:
         payload = json.loads(resp.read().decode("utf-8", "replace"))
     status = payload.get("responseStatus")
     if status != 200:

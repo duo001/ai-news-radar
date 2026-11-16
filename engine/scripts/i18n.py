@@ -272,6 +272,7 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
     返回统计 dict：{considered, translated, failed, skipped, provider}
     """
     import mt as mt_mod
+    import glossary
 
     store = load_news_store()
     todo = build_news_todo(entries)["items"]
@@ -322,6 +323,8 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
             if not zh_summary:
                 stat["failed"] += 1
                 continue
+            # 术语归一化（护栏：只看本条原文语境）
+            zh_summary, _ = glossary.normalize_text(zh_summary, slot["summary_src"])
             prev = store.get(slot["link"]) or {}
             store[slot["link"]] = {**prev,
                 "zh_summary": zh_summary,
@@ -339,6 +342,11 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
         zh_summary = ""
         if slot["summary_idx"] is not None:
             zh_summary = out[slot["summary_idx"]] or ""
+        # 术语归一化（原文语境 = 标题 + 摘要）
+        ctx_blob = f"{slot['title']} {slot['summary_src']}"
+        zh_title, _ = glossary.normalize_text(zh_title, ctx_blob)
+        if zh_summary:
+            zh_summary, _ = glossary.normalize_text(zh_summary, ctx_blob)
         store[slot["link"]] = {
             "zh_title": zh_title,
             "zh_summary": zh_summary,

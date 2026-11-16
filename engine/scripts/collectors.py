@@ -23,6 +23,7 @@ import json
 import re
 import time
 import urllib.error
+import netcfg
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,7 +95,7 @@ def _http_json(url):
         "Accept-Encoding": "gzip, deflate",
     })
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        with netcfg.open_url(req, timeout=TIMEOUT) as resp:
             raw = resp.read()
             if resp.headers.get("Content-Encoding", "").lower() == "gzip" \
                     or raw[:2] == b"\x1f\x8b":

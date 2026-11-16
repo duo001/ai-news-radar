@@ -47,6 +47,9 @@
 | POST | `/weekly` | 生成周报，body `{days?,perTopic?,limit?}`；跑 `radar.py weekly` 并返回 `{path, markdown}` |
 | GET | `/watch` | 读关注词全量配置（含停用），返回 `{keywords:[{term,enabled}]}` |
 | POST | `/watch` | 关注词管理，body `{op:'add'\|'remove'\|'toggle', term, enabled?}`；写入后自动离线重渲染 |
+| GET | `/proxy` | 读代理配置，返回 `{enabled,url,no_proxy}` |
+| POST | `/proxy` | 保存代理，body `{enabled,url,noProxy}`；启用时校验 http/https 地址并拒绝 socks |
+| POST | `/proxy/test` | 实测代理连通，body `{url}`，返回 `{ok,elapsed_ms,error,sample}` |
 
 所有响应 `{ok:true,...}` 或 `{ok:false,error}`，`cache-control: no-store`。
 

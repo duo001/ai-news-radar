@@ -17,6 +17,7 @@ import json
 import re
 import time
 import urllib.request
+import netcfg
 import urllib.error
 import urllib.parse
 from datetime import datetime, timezone
@@ -107,7 +108,7 @@ def _http_get(url, accept="*/*", timeout=None):
         "User-Agent": DISCOVER_UA,
         "Accept": accept,
         "Accept-Encoding": "gzip, deflate"})
-    with urllib.request.urlopen(req, timeout=timeout or DISCOVER_TIMEOUT) as resp:
+    with netcfg.open_url(req, timeout=timeout or DISCOVER_TIMEOUT) as resp:
         raw = resp.read()
         if resp.headers.get("Content-Encoding", "") == "gzip" or raw[:2] == b"\x1f\x8b":
             raw = gzip.decompress(raw)

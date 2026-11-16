@@ -152,6 +152,28 @@ def cmd_source_check(args):
     return 0
 
 
+def cmd_backup(args):
+    """资产备份/恢复/列表（翻译库、已读、关注词、DB 等 gitignore 资产）。"""
+    import backup
+    if getattr(args, "list", False):
+        backs = backup.list_backups()
+        if not backs:
+            print(f"暂无备份（目录 {backup.BACKUP_DIR}）")
+            return 0
+        for p in backs:
+            print(f"{p.name}  {p.stat().st_size // 1024} KB  {p.parent}")
+        return 0
+    if getattr(args, "restore", False):
+        target = pathlib.Path(args.restore) if args.restore is not True else None
+        manifest = backup.restore_backup(target, log=_log)
+        _log(f"恢复完成，共 {len(manifest.get('included', []))} 个资产；"
+             f"建议跑一次 `news --offline` 重渲染面板文件")
+        return 0
+    path = backup.create_backup(log=_log)
+    print(f"备份文件：{path}")
+    return 0
+
+
 def cmd_categories(_args):
     for c in registry.load_categories():
         qs = c.queries()
@@ -390,6 +412,17 @@ def cmd_translate(args):
     if getattr(args, "news", False):
         payload = _news_payload_for_translate()
         entries = payload.get("news", [])
+        if getattr(args, "normalize", False):
+            # 术语表归一化：只改机翻条目（source=auto:*），人工精译不动
+            import glossary
+            store = i18n.load_news_store()
+            stats = glossary.normalize_store(
+                store, log=_log if not getattr(args, "quiet", False) else None)
+            i18n.save_news_store(store)
+            _log(f"术语归一化：扫描机翻 {stats['scanned']} 条，修改 {stats['changed']} 条；"
+                 f"规则命中 {stats['rules']}")
+            _rerender_news(payload)
+            return 0
         if args.coverage:
             done, pending, native = i18n.news_coverage(entries)
             total = done + pending
@@ -904,6 +937,11 @@ def build_parser():
                         help="信源体检：近 N 天静默源、连续故障源、health 孤儿记录（纯本地不联网）")
     sc.add_argument("--days", type=int, default=7)
     sc.set_defaults(func=cmd_source_check)
+    bk = sub.add_parser("backup", help="资产备份：翻译库/已读/关注词/DB 打包成 zip")
+    bk.add_argument("--list", action="store_true", help="列出已有备份")
+    bk.add_argument("--restore", nargs="?", const=True, default=None,
+                    help="从备份恢复（不带路径=取最新一份）")
+    bk.set_defaults(func=cmd_backup)
     sub.add_parser("categories").set_defaults(func=cmd_categories)
     r = sub.add_parser(
         "run",
@@ -929,6 +967,8 @@ def build_parser():
                    help="（配合 --auto）本次最多翻译多少条，默认全部")
     t.add_argument("--provider", default=None, choices=["transmart", "mymemory"],
                    help="（配合 --auto）指定翻译通道，默认自动降级")
+    t.add_argument("--normalize", action="store_true",
+                   help="（配合 --news）用术语表归一化历史机翻（Agent/Token/Prompt 等），人工精译不动")
     t.set_defaults(func=cmd_translate)
     sub.add_parser("render", help="【封存】用最新 GitHub run 数据和翻译库重新渲染报告").set_defaults(func=cmd_render)
     n = sub.add_parser("news", help="★ 主力命令：并发采集 RSS/Atom AI 资讯，出 md + html + json 并套用中文翻译")

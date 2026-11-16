@@ -12,6 +12,7 @@ import gzip
 import json
 import re
 import urllib.request
+import netcfg
 import urllib.error
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -316,7 +317,7 @@ def fetch_one(source, offline=False):
         req = urllib.request.Request(source["url"], headers={
             "User-Agent": UA, "Accept-Encoding": "gzip, deflate"})
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            with netcfg.open_url(req, timeout=TIMEOUT) as resp:
                 raw = resp.read()
                 xml_text = _decode_body(raw, resp.headers.get("Content-Encoding", ""))
             CACHE_DIR.mkdir(parents=True, exist_ok=True)

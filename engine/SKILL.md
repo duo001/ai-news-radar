@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.15.0
+version: 0.17.0
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -63,6 +63,13 @@ python3 radar.py weekly --days 30 --per-topic 20   # 回溯 30 天、每主题�
 python3 radar.py source-check                 # 近 7 天静默源 + 连续故障源 + health 孤儿记录
 python3 radar.py source-check --days 14       # 换静默窗口
 python3 radar.py doctor --sources             # 环境自检后顺带跑体检
+
+# ===== 代理、术语与资产备份（v0.17）=====
+python3 radar.py backup                       # 打包翻译库/已读/关注词/DB → data/backups/*.zip
+python3 radar.py backup --list               # 列出已有备份
+python3 radar.py backup --restore            # 从最新备份恢复（可跟 zip 路径）
+python3 radar.py translate --news --normalize # 用术语表归一化历史机翻（Agent/Token/Prompt）
+# 代理在面板「🌐 网络」里配置，写 data/sources/proxy.json，无需命令行
 
 # ===== 已封存 legacy：GitHub 项目扫描（代码保留可用）=====
 python3 radar.py categories                  # 查看已注册 GitHub 类目与查询数
@@ -164,6 +171,9 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - **无标签补全（v0.15）**：新增「AI 综合」标签收编 AI 泛讨论（AI 时代/热潮/机器学习），并给强领域信源组（厂商官方/学术/AI 媒体/安全/硬件等）配分组兜底标签，开发者社区等杂烩组不兜底；无标签率从 29.8% 降到 11.0%，剩下的多为版本号、日文短标题与确实跨领域的社区帖
 - **关注词面板管理（v0.15）**：`watch.py` 增 `add_keyword/remove_keyword/toggle_keyword/load_raw`（原子写、同名忽略大小写、64 字符上限），插件新增 `GET/POST /ai-news/watch`（op: add/remove/toggle），写入后自动离线重渲染让命中立即生效；面板「关注」条右侧「管理 ⚙」可直接增删启停，无需手改 JSON
 - **信源体检（v0.15，`scripts/sourcecheck.py` + `radar.py source-check`）**：纯本地分析三项——近 N 天 0 条的静默源（"最近条目"取 30 天全量、静默判定看短窗口）、`source-health.json` 连续失败 ≥2 的故障源、配置已删但 health 残留的孤儿记录；只报告不自动停用（低频博客静默是正常的），周报末尾自动附静默/故障榜
+- **代理出口（v0.17，`scripts/netcfg.py`）**：面板工具栏「🌐 网络」填入代理地址即可让全部外网请求走代理——RSS/Atom 采集、结构化采集器（OpenRouter/HN）、信源发现、腾讯 transmart 机翻共用同一个出口 `netcfg.open_url()`。配置存 `data/sources/proxy.json`（`{enabled,url,no_proxy}`，不入库），只支持 http/https（标准库无 socks 支持，保存时明确拒绝 socks 并提示）；`no_proxy` 逗号分隔白名单内主机直连；面板「测试连通」复用引擎同一套 `netcfg.test_proxy`（拉 `api.github.com/zen`），避免 Node 与 Python 两套代理行为不一致出现"测通了但采集不走"
+- **术语归一化（v0.17，`scripts/glossary.py`）**：transmart 机翻把 Agent 译成「代理」、Token 译成「令牌/代币/标记」、Prompt 译成「提示」，与行业习惯不符。术语表在后处理阶段统一：代理→智能体、token→Token（仅 LLM 语境）、prompt→提示词。每条规则都带原文语境护栏（原文须含 agent/token/prompt 词根）与组合词护栏（代理服务器/代理人/代理商不替换），且**只改 `source=auto:*` 的机翻条目，人工精译一字不动**。新翻译在 `auto_translate_news` 落库前即时归一化，历史数据用 `translate --news --normalize` 回填（幂等，重复跑不改动）
+- **资产备份（v0.17，`scripts/backup.py` + `radar.py backup`）**：翻译库、已读状态、关注词、源体检与发现结果、news.db 都在 .gitignore 里，误删即不可再生。`backup` 打成 `data/backups/backup-YYYYMMDD-HHMMSS.zip`（内含 `backup-manifest.json` 记录纳管/缺失清单），`--restore` 按原路径原子写回并做 zip-slip 路径校验；cache 与时间戳报告不纳入（可重抓/可重渲染）
 
 ### 工作台形态：@local/ai-news-panel 插件
 

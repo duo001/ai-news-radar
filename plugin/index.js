@@ -42,6 +42,8 @@ let newsCacheAt = 0;
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEALS_JSON = path.join(ENGINE_DIR, 'data', 'deals.json');
 const WATCH_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'watch.json');
+// 代理配置：与 scripts/netcfg.py 同一份文件，填了地址后所有外网请求走代理
+const PROXY_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'proxy.json');
 let dealsCache = null;
 let dealsCacheAt = 0;
 const DEALS_CACHE_TTL_MS = 10 * 60 * 1000;   // 情报类低频变化，10 分钟
@@ -177,6 +179,64 @@ function countUnread(state, cache) {
   const news = (cache && cache.news) || [];
   if (!news.length) return 0;
   return news.filter((n) => n.link && !state[n.link]).length;
+}
+
+// ---- 代理配置（proxy.json），与 scripts/netcfg.py 同一份文件 ----
+const PROXY_DEFAULT = { enabled: false, url: '', no_proxy: '' };
+
+async function readProxy() {
+  try {
+    const doc = JSON.parse(await readFile(PROXY_JSON, 'utf-8'));
+    return {
+      enabled: !!doc.enabled,
+      url: String(doc.url || ''),
+      no_proxy: String(doc.no_proxy || ''),
+    };
+  } catch {
+    return { ...PROXY_DEFAULT };
+  }
+}
+
+// 用 Python 的 netcfg.test_proxy 实测代理连通性（复用与采集完全相同的实现，
+// 避免 Node/urllib 两套代理行为不一致导致「测通了但采集不走」）
+async function testProxy(url) {
+  const argv = [
+    PYTHON, '-c',
+    'import sys,json; sys.path.insert(0, sys.argv[1]); import netcfg;'
+    + 'print(json.dumps(netcfg.test_proxy(sys.argv[2]), ensure_ascii=False))',
+    path.join(ENGINE_DIR, 'scripts'),
+    url,
+  ];
+  let handle;
+  try {
+    handle = subprocess.spawn({
+      argv,
+      cwd: ENGINE_DIR,
+      stdio: {
+        stdin: 'ignore',
+        stdout: { maxBytes: 8 * 1024 },
+        stderr: { maxBytes: 8 * 1024 },
+      },
+      graceMs: 45_000,
+    });
+  } catch (err) {
+    return { ok: false, via: url, elapsed_ms: 0,
+      error: `测试进程启动失败: ${String(err && err.message || err)}`, sample: '' };
+  }
+  const res = await handle.done;
+  const out = handle.collected?.stdout?.readFrom(0)?.text || '';
+  const errOut = handle.collected?.stderr?.readFrom(0)?.text || '';
+  if (res && res.exitCode !== 0 && !out.trim()) {
+    return { ok: false, via: url, elapsed_ms: 0,
+      error: (errOut || '测试进程失败').toString().slice(0, 300), sample: '' };
+  }
+  try {
+    const line = String(out).trim().split('\n').filter(Boolean).pop();
+    return JSON.parse(line);
+  } catch {
+    return { ok: false, via: url, elapsed_ms: 0,
+      error: (errOut || out || '测试进程无输出').toString().slice(0, 300), sample: '' };
+  }
 }
 
 function runRadarNews({ offline = true, perSource = 8, only = '' } = {}) {
@@ -620,6 +680,49 @@ export async function apply(ctx) {
           await runRadarNews({ offline: true });
         }
         sendJson(res, 200, { ok: true, changed, keywords: doc.keywords });
+        return;
+      }
+
+      if (req.method === 'GET' && route === '/proxy') {
+        const conf = await readProxy();
+        sendJson(res, 200, { ok: true, ...conf });
+        return;
+      }
+
+      if (req.method === 'POST' && route === '/proxy') {
+        const body = await readJsonBody(req);
+        const enabled = !!body.enabled;
+        const url = String(body.url || '').trim();
+        const noProxy = String(body.noProxy || body.no_proxy || '').trim();
+        if (enabled) {
+          if (!url) {
+            sendJson(res, 400, { ok: false, error: '启用代理时必须填写代理地址' });
+            return;
+          }
+          if (/^socks/i.test(url)) {
+            sendJson(res, 400, { ok: false, error: '暂不支持 socks 代理，请用 http:// 或 https:// 地址' });
+            return;
+          }
+          if (!/^https?:\/\/[^\s/]+/i.test(url)) {
+            sendJson(res, 400, { ok: false, error: '代理地址需以 http:// 或 https:// 开头，如 http://127.0.0.1:7890' });
+            return;
+          }
+        }
+        const conf = { enabled, url, no_proxy: noProxy };
+        await writeFile(PROXY_JSON, `${JSON.stringify(conf, null, 2)}\n`, 'utf-8');
+        sendJson(res, 200, { ok: true, ...conf });
+        return;
+      }
+
+      if (req.method === 'POST' && route === '/proxy/test') {
+        const body = await readJsonBody(req);
+        const url = String(body.url || '').trim();
+        if (!url) {
+          sendJson(res, 400, { ok: false, error: '请先填写代理地址' });
+          return;
+        }
+        const r = await testProxy(url);
+        sendJson(res, 200, r);
         return;
       }
 
