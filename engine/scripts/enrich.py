@@ -96,8 +96,11 @@ def obtain_of(title, summary="", form=None):
 
 _TOPIC_RULES = (
     # ---------- AI 相关（先匹配，保证 AI 文章优先打 AI 标签）----------
-    ("模型", r"\b(gpt|claude|gemini|llama|qwen|deepseek|kimi|mistral|gemma|o[134])\b|"
-              r"大模型|模型(发布|升级|迭代)|新模型|frontier\s+model"),
+    ("模型", r"\b(gpt|claude|gemini|llama|qwen|kimi|mistral|gemma|o[134])\b|"
+              # deepseek 单独出现多指模型；后接 harness/平台/插件，或处于 URL 路径中
+              # （/r/deepseek/、deepseek-ai/、deepseek-creator-mode 等）时是产品名/链接
+              r"\bdeepseek\b(?!\s+(?:harness|平台|插件|plugin)|[/\-_])"
+              r"|大模型|模型(发布|升级|迭代)|新模型|frontier\s+model"),
     ("Agent", r"\bagent(s)?\b|智能体|自治体|copilot|多智能体|autonomous"),
     ("MCP", r"\bmcp\b|model\s+context\s+protocol"),
     ("RAG", r"\brag\b|retrieval|检索增强|向量(库|检索)|embedding|知识库"),
@@ -127,6 +130,25 @@ _TOPIC_RULES = (
                 r"infrastructure|accelerator|半导体|semiconductor|处理器|cpu|arm|"
                 r"risc[\s-]?v|内存|存储硬件"),
     # ---------- 行业与垂直领域 ----------
+    # 时政/国际用 (标签, 标题强信号, 摘要弱信号) 三元组：摘要里 government/worldwide
+    # 之类的泛词太常见，只在摘要命中时要求与标题共同佐证，避免大量误判（见坑文档 33）
+    ("时政要闻",
+     r"政治|政府|总统|大选|选举|议会|白宫|国会|国务院|外交部|外交|军事|战争|制裁|"
+     r"关税|政党|首相|总理|国家主席|行政命令|政权|停火|俄乌|中东局势|地缘政治|"
+     r"geopolit|sanction|tariff|trade\s+war|war\s+(?:crimes|zone|in|on)|"
+     + _w(r"election") + r"|" + _w(r"government") + r"|" + _w(r"president") +
+     r"|" + _w(r"military"),
+     r"政治|政府|总统|大选|选举|议会|白宫|国会|外交部|外交|军事|战争|制裁|关税|"
+     r"首相|总理|停火|俄乌|中东|地缘政治|geopolit|sanction|tariff|trade\s+war|"
+     r"war\s+(?:crimes|zone|in|on)|" + _w(r"election") + r"|" + _w(r"military")),
+    ("国际资讯",
+     r"国际(?:关系|贸易|局势|政治|新闻|峰会|制裁|争端|合作|秩序|局势)|"
+     r"联合国|峰会|欧盟|中美(?:关系|贸易|关税|博弈|外交|制裁)|中欧|东盟|地缘|"
+     r"全球(?:贸易|经济|治理|格局|峰会|供应链)|"
+     r"international\s+(?:news|relations|affairs|trade|community|cooperation)|"
+     r"world\s+news|global\s+news",
+     r"国际(?:关系|贸易|局势|政治|新闻|峰会|制裁|争端|合作|秩序)|跨国|联合国|峰会|欧盟|"
+     r"中美(?:关系|贸易|关税|博弈|外交|制裁)|中欧|东盟|地缘|各国|international"),
     ("政策合规", r"监管|regulat|合规|法案|政策|禁令|\bban\b|版权|著作权|copyright|"
                 r"欧盟|eu\s+ai\s+act|反垄断|antitrust|诉讼|lawsuit|gdpr"),
     ("商业融资", r"融资|funding|估值|valuation|\bipo\b|收购|acquisition|营收|revenue|"
@@ -140,7 +162,9 @@ _TOPIC_RULES = (
     ("汽车出行", r"电动车|新能源汽车|自动驾驶|autonomous\s+driving|特斯拉|tesla|比亚迪|"
                 r"智能座舱|车载|网约车|充电桩|电动汽车|\bev\b|车企|轿车|suv|车型"),
     ("游戏", r"游戏|gaming|" + _w(r"steam") + r"|epic\s+games|游戏主机|" + _w(r"ps5") +
-            r"|xbox|switch|手游|游戏开发|game\s+dev|电竞|独立游戏|3a|玩家"),
+            r"|xbox|switch|手游|游戏开发|game\s+dev|电竞|独立游戏|3a|玩家|"
+            r"warhammer|战锤|原神|黑神话|塞尔达|任天堂|nintendo|"
+            r"dawn\s+of\s+war|游戏ip|主机游戏"),
     ("影音媒体", r"视频|流媒体|streaming|netflix|youtube|音乐|spotify|播客|podcast|"
                 r"电影|影视|短视频|直播|hbo|迪士尼|内容创作|自媒体|剧集|综艺|影院"),
     ("设计创意", r"设计|design|" + _w(r"ui") + r"|" + _w(r"ux") + r"|figma|创意|平面设计|"
@@ -161,9 +185,29 @@ _TOPIC_MAX = 5
 
 
 def topics_of(title, summary=""):
-    """抽取领域标签，最多 4 个。"""
-    text = f"{title} {summary}".lower()
-    hits = [name for name, pat in _TOPIC_RULES if re.search(pat, text)]
+    """抽取领域标签，最多 _TOPIC_MAX 个。
+
+    规则有两种形状：
+    - 二元组 (name, pattern)：标题+摘要合并匹配；
+    - 三元组 (name, title_pat, summary_pat)：时政/国际专用，标题命中即准入，
+      摘要命中必须同时在标题里找到任一强/弱信号，防止摘要泛词（government、
+      worldwide 等）把无关资讯误判成时政/国际新闻。
+    """
+    title = title or ""
+    summary = summary or ""
+    tl = title.lower()
+    hits = []
+    for rule in _TOPIC_RULES:
+        if len(rule) == 3:
+            name, title_pat, summary_pat = rule
+            if re.search(title_pat, tl):
+                hits.append(name)
+            elif re.search(summary_pat, summary.lower()) and re.search(title_pat, tl):
+                hits.append(name)
+        else:
+            name, pat = rule
+            if re.search(pat, f"{tl} {summary.lower()}"):
+                hits.append(name)
     return hits[:_TOPIC_MAX]
 
 

@@ -62,7 +62,7 @@ ai-git-radar/
 │   ├── radar.py             # CLI 入口：news(主力)/translate/doctor；run/render(legacy)
 │   ├── feeds.py             # ★ RSS/Atom 采集：并发、gzip 解压、样式清洗、容错+缓存回退
 │   ├── collectors.py        # ★ 结构化采集器：OpenRouter 免费模型 / HN AI（零 key JSON API）
-│   ├── enrich.py            # ★ 正交分类：form/obtain/topics（27 标签，不局限 AI）/codes
+│   ├── enrich.py            # ★ 正交分类：form/obtain/topics（29 标签含时政/国际，不局限 AI）/codes
 │   ├── db.py                # SQLite 持久化（30 天保留、UPSERT by link、temp_store=MEMORY）
 │   ├── discover.py          # 信源自动发现：网页声明/常见路径/OPML 目录/远程清单 → 待审队列
 │   ├── mt.py                # 免费机翻（腾讯 transmart 主通道，零 key，双预算切片）

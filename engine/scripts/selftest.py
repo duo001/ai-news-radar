@@ -176,6 +176,45 @@ def test_enrich():
     check("消费电子" not in enrich.topics_of("Learn regular expressions step by step"),
           "vr 词边界：regular 不命中消费电子")
 
+    # 时政要闻 / 国际资讯（v0.12 新增，三元组规则）
+    check("时政要闻" in enrich.topics_of("日本首相宣布大选日期，政府公布选举安排"),
+          "时政要闻中文正例")
+    check("时政要闻" in enrich.topics_of("US government grounds all flights after FAA order"),
+          "时政要闻英文正例")
+    check("国际资讯" in enrich.topics_of("中美贸易摩擦升级，G20 峰会将举行磋商"),
+          "国际资讯正例")
+    check("国际资讯" in enrich.topics_of("欧盟通过新一轮制裁，国际秩序面临调整"),
+          "国际资讯正例（欧盟/国际）")
+    # 摘要泛词不得把无关资讯误判成时政/国际
+    check("时政要闻" not in enrich.topics_of(
+        "Xbox Helix 新品发布", "The president of gaming division commented on the launch"),
+        "摘要 president 泛词不单独触发时政")
+    check("国际资讯" not in enrich.topics_of(
+        "Microsoft 365 宕机一天", "Services went down worldwide for enterprise users"),
+        "摘要 worldwide 泛词不单独触发国际")
+    check("时政要闻" not in enrich.topics_of("War Room 组建以迎接 CEO 回归", ""),
+          "商业比喻 war room 不触发时政")
+    check("国际资讯" not in enrich.topics_of("DeepSeek Harness – Creator Mode 发布", ""),
+          "g7 等子串不误伤（Creator 不含国际信号）")
+
+    # 游戏 IP（Warhammer/战锤）归入游戏
+    check("游戏" in enrich.topics_of("Warhammer 40,000: Dawn of War IV is coming"),
+          "Warhammer 游戏 IP 命中游戏分类")
+    check("时政要闻" not in enrich.topics_of("Warhammer 40,000: Dawn of War IV 即将发售"),
+          "Dawn of War 游戏标题不误判时政")
+
+    # deepseek 在 URL/产品名中不算模型词，但真模型新闻仍命中
+    check("模型" not in enrich.topics_of("DeepSeek Harness – Creator Mode",
+          "Article URL: https://www.reddit.com/r/DeepSeek/s/abc Comments URL: x"),
+          "URL 中的 deepseek 不触发模型标签")
+    check("模型" not in enrich.topics_of("DeepSeek Harness new Creator Mode",
+          "https://github.com/deepseek-ai/dsh-superagent releases"),
+          "github 路径 deepseek-ai 不触发模型标签")
+    check("模型" in enrich.topics_of("DeepSeek 发布 V4 新模型，推理能力提升"),
+          "真模型发布仍命中模型标签")
+    check("模型" in enrich.topics_of("deepseek-v4 模型升级"),
+          "deepseek-v4 模型升级仍命中（中文模型升级词）")
+
     # 兑换码：显式标注、分段码、长码；排除纯数字/常见词/无字母
     codes = enrich.codes_of("邀请码: ABCD-EFGH-IJKL 限时", "promo code ZXCV9999")
     check("ABCD-EFGH-IJKL" in codes and "ZXCV9999" in codes, f"兑换码抽取: {codes}")
