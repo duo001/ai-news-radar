@@ -102,7 +102,7 @@ ai-git-radar/
 
 - **资讯源**：在 `data/sources/feeds.json` 的 `sources` 数组追加一条
   （`id/name/url/kind(rss|atom)/group/tags/enabled`），`doctor` 自动纳入体检，无需改代码。
-- **GitHub 类目**（legacy）：复制任一 `categories/*.yaml`，改 `id/name/topics/core_keywords`，
+- **GitHub 类目**（legacy，说明见 `NOTES-legacy.md`）：复制任一 `categories/*.yaml`，改 `id/name/topics/core_keywords`，
   下次运行自动出现在报告里。规则写法（强弱词、`strict_topic_match`、双通道隔离）
   见 SKILL.md「怎么扩展」。
 

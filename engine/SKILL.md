@@ -72,6 +72,7 @@ python3 radar.py translate --news --normalize # 用术语表归一化历史机�
 # 代理在面板「🌐 网络」里配置，写 data/sources/proxy.json，无需命令行
 
 # ===== 已封存 legacy：GitHub 项目扫描（代码保留可用）=====
+# 说明见 NOTES-legacy.md：类目清单、代码构成、扩展方法与已知边界
 python3 radar.py categories                  # 查看已注册 GitHub 类目与查询数
 python3 radar.py run --quick                 # 只抓 trending，零搜索额度
 python3 radar.py run                         # trending + Search 全量，默认深度分析前 50
