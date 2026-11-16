@@ -42,6 +42,8 @@
 | POST | `/discover` | 触发发现，body `{mode:'web'\|'opml'\|'catalog'\|'remote', target}` |
 | POST | `/suggestions` | 采纳/忽略，body `{op:'accept'\|'ignore'\|'accept-all', ids[]}` |
 | POST | `/translate` | 免费机翻，body `{limit?}`；翻完回写 `plugin-news.json` 并返回最新列表 |
+| POST | `/read` | 标记已读，body `{links:[url…], read:true\|false}`；状态存 `data/news-read.json` |
+| POST | `/read-all` | 当前列表全部已读，body `{}` |
 
 所有响应 `{ok:true,...}` 或 `{ok:false,error}`，`cache-control: no-store`。
 
