@@ -157,7 +157,8 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - v0.13 新增路由：`POST /read`（`{links:[url…], read:true|false}`，标记已读/未读）、`POST /read-all`（`{}`，当前列表全部已读）。已读状态存在引擎目录的 `data/news-read.json`（`{updated_at, read:{link:iso}}`，**JS 侧单一真源**，不写入 SQLite——deals 条目不在 news 表里也能标记，且免去库结构迁移）；`GET /news` 返回的每条带 `read` 布尔。前端用「本地覆盖层 + 服务端初值」做乐观更新：点击卡片立即变半透明并后台 POST，失败不回滚（下次刷新以服务端为准）；工具栏有「只看未读 N」「全部已读」
 - `--quiet` 是 news 子命令专为插件加的开关：不打印摘要/逐源日志、不写时间戳三件套，只出 `--json-out` 的固定 JSON
 - Client 半用全局 `fetch` 同源调路由（持久化 ESM bundle 可用 fetch；动态沙箱插件的 `host.call` 此路不通，详见 references 第 22 条）
-- 引擎位置探测：环境变量 `AI_GIT_RADAR_DIR` → 同仓 `../engine` → 历史布局 `../ai-git-radar` → cwd 兄弟目录兜底；插件 entryId 为 `include:ai-news-panel`
+- 引擎位置探测：环境变量 `AI_GIT_RADAR_DIR` → 同仓 `../engine`（v0.13 起默认命中此条，**本仓库是唯一真源**）→ 历史布局 `../ai-git-radar` → cwd 兄弟目录兜底；插件 entryId 为 `include:ai-news-panel`，profile 里以 `link:` 软链到本仓 `plugin/`，改代码后只需 set_plugin 重载、不再 rsync
+- v0.13 起运行时数据（`news.db`/`news_translations.json`/`plugin-news.json`/`news-read.json`/`source-health.json`/`cache/`）全部 gitignore，只留在本机 `engine/data/`；入库的只有 `sample-*` 示例、`sources/*.json` 配置、`deals.json`、`translations.json`。本地布局与回退步骤见仓库根 `NOTES.local.md`（不入库）
 
 ## 怎么扩展（核心设计）
 
