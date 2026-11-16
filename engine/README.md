@@ -59,10 +59,11 @@ ai-git-radar/
 │   ├── 03-ai-tech.yaml
 │   └── 04-agent-skills.yaml # Agent 生态：skills / DSH / Claude Code（严格 topic 模式）
 ├── scripts/
-│   ├── radar.py             # CLI 入口：news(主力)/translate/doctor；run/render(legacy)
+│   ├── radar.py             # CLI 入口：news(主力)/weekly(周报)/translate/doctor；run/render(legacy)
 │   ├── feeds.py             # ★ RSS/Atom 采集：并发、gzip 解压、样式清洗、容错+缓存回退
 │   ├── collectors.py        # ★ 结构化采集器：OpenRouter 免费模型 / HN AI（零 key JSON API）
 │   ├── enrich.py            # ★ 正交分类：form/obtain/topics（29 标签含时政/国际，不局限 AI）/codes
+│   ├── watch.py             # ★ 关键词关注：watch.json 声明式配置，整词/子串匹配，渲染层打 watch_hits
 │   ├── db.py                # SQLite 持久化（30 天保留、UPSERT by link、temp_store=MEMORY）
 │   ├── discover.py          # 信源自动发现：网页声明/常见路径/OPML 目录/远程清单 → 待审队列
 │   ├── mt.py                # 免费机翻（腾讯 transmart 主通道，零 key，双预算切片）
@@ -80,8 +81,9 @@ ai-git-radar/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图
 └── data/
-    ├── sources/feeds.json       # ★ RSS/Atom 信源表（131 源/13 组，加源只改这里）
+    ├── sources/feeds.json       # ★ RSS/Atom 信源表（128 源/13 组，加源只改这里）
     ├── sources/collectors.json  # ★ 结构化采集器配置（2 启用 / 4 预置停用）
+    ├── sources/watch.json       # ★ 关键词关注列表（watch_hits，改完即生效）
     ├── cache/feeds/             # feed XML 缓存（3h TTL，离线回退）
     ├── cache/collectors/        # 采集器 JSON 缓存（3h TTL）
     ├── sample-news.*        # 资讯示例批次（42 条，100% 中文翻译）

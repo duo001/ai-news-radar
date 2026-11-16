@@ -38,6 +38,7 @@ import i18n
 import feeds
 import collectors
 import enrich
+import watch
 import discover
 import db
 
@@ -301,6 +302,7 @@ def cmd_run(args):
         news_failures.extend(col_failures)
         news_entries = _drop_flagged_noise(news_entries, _log)
         enrich.attach(news_entries)
+        watch.attach_watch(news_entries, translations=i18n.load_news_store(), log=_log)
         _log(f"资讯合计 {len(news_entries)} 条，失败信源 {len(news_failures)} 个，去重 {news_dup} 条")
 
     payload = {
@@ -588,6 +590,9 @@ def cmd_news(args):
     # 历史入库的噪音（交易/问询帖）在渲染层也过滤掉，不必等下次在线采集清理
     db_entries = _drop_flagged_noise(db_entries, None)
     enrich.attach(db_entries)
+    # 关键词关注（纯渲染层，不入库；匹配标题/摘要/中文译文）
+    watch.attach_watch(db_entries, translations=news_trans,
+                       log=None if getattr(args, "quiet", False) else _log)
     if pruned and not getattr(args, "quiet", False):
         _log(f"保留策略：清理 {pruned} 条 {db.RETENTION_DAYS} 天前的过期资讯")
 
@@ -662,6 +667,87 @@ def cmd_news(args):
             pending = i18n.news_coverage(payload["news"])[1]
     if pending and not quiet:
         _log(f"有 {pending} 条英文标题待译：python3 radar.py translate --news --todo")
+    return 0
+
+
+def cmd_weekly(args):
+    """周报：从 DB 读近 N 天资讯，按领域主题分组导出 Markdown，含关注词专区。"""
+    days = args.days
+    entries = db.query_news(days=days, limit=100000)
+    if not entries:
+        _log(f"近 {days} 天没有可导出的资讯")
+        return 1
+    enrich.attach(entries)
+    news_trans = i18n.load_news_store()
+    watch.attach_watch(entries, translations=news_trans)
+
+    def zh(it):
+        tr = news_trans.get(it.get("link", "")) or {}
+        return tr.get("zh_title") or it.get("title") or "(无标题)"
+
+    # 按主题分桶（一条资讯可进多个主题）；无主题进「其他」
+    by_topic, no_topic = {}, []
+    for it in entries:
+        tops = it.get("topics") or []
+        if not tops:
+            no_topic.append(it)
+            continue
+        for t in tops:
+            by_topic.setdefault(t, []).append(it)
+    watch_hits = [it for it in entries if it.get("watch_hits")]
+    # form 统计
+    form_counter = {}
+    for it in entries:
+        f = it.get("form") or "news"
+        form_counter[f] = form_counter.get(f, 0) + 1
+    source_n = len({it.get("source_id") or it.get("source_name") for it in entries})
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    lines = [f"# AI 资讯周报（近 {days} 天）", "",
+             f"> 生成时间：{today} ｜ 资讯 {len(entries)} 条 ｜ 活跃信源 {source_n} 个 ｜ "
+             f"关注词命中 {len(watch_hits)} 条", ""]
+    # 总览
+    lines += ["## 一、总览", "",
+              "| 指标 | 数值 |", "| --- | --- |",
+              f"| 资讯总数 | {len(entries)} |",
+              f"| 活跃信源 | {source_n} |",
+              f"| 关注词命中 | {len(watch_hits)} |",
+              f"| 形态分布 | " + "，".join(f"{k} {v}" for k, v in
+                  sorted(form_counter.items(), key=lambda kv: -kv[1])) + " |", ""]
+    # 关注词专区
+    if watch_hits:
+        lines += ["## 二、关注词命中专区", ""]
+        for it in watch_hits[:args.limit]:
+            d = (it.get("published") or "")[:10]
+            hits = "、".join(it.get("watch_hits", []))
+            lines.append(f"- [{d}] {zh(it)[:70]} `{hits}` —— {it.get('source_name','')}")
+            if it.get("link"):
+                lines.append(f"  {it['link']}")
+        lines.append("")
+    # 主题分区
+    lines += [f"## {'三' if watch_hits else '二'}、按主题分区", ""]
+    for topic, items in sorted(by_topic.items(), key=lambda kv: -len(kv[1])):
+        lines.append(f"### {topic}（{len(items)}）")
+        for it in items[:args.per_topic]:
+            d = (it.get("published") or "")[:10]
+            lines.append(f"- [{d}] [{zh(it)[:70]}]({it.get('link','')}) —— {it.get('source_name','')}")
+        if len(items) > args.per_topic:
+            lines.append(f"- ……另有 {len(items) - args.per_topic} 条")
+        lines.append("")
+    if no_topic:
+        lines += [f"### 未归类（{len(no_topic)}）", ""]
+        for it in no_topic[:args.per_topic]:
+            d = (it.get("published") or "")[:10]
+            lines.append(f"- [{d}] [{zh(it)[:70]}]({it.get('link','')}) —— {it.get('source_name','')}")
+        lines.append("")
+
+    out = pathlib.Path(args.out) if args.out else (
+        DATA / f"weekly-{datetime.now().strftime('%Y%m%d')}.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("\n".join(lines), encoding="utf-8")
+    _log(f"周报已导出：{out}（{len(entries)} 条 / {len(by_topic)} 个主题 / 关注命中 {len(watch_hits)}）")
+    if args.print_md:
+        print("\n".join(lines))
     return 0
 
 
@@ -783,6 +869,13 @@ def build_parser():
     n.add_argument("--translate-limit", type=int, default=None,
                    help="（配合 --translate）本次最多翻译多少条，默认全部")
     n.set_defaults(func=cmd_news)
+    w = sub.add_parser("weekly", help="周报：近 N 天资讯按主题分组导出 Markdown，含关注词专区")
+    w.add_argument("--days", type=int, default=7, help="回溯天数（默认 7）")
+    w.add_argument("--per-topic", type=int, default=10, help="每个主题最多列多少条（默认 10）")
+    w.add_argument("--limit", type=int, default=30, help="关注词专区最多列多少条（默认 30）")
+    w.add_argument("--out", default="", help="输出 Markdown 路径（默认 data/weekly-YYYYMMDD.md）")
+    w.add_argument("--print-md", action="store_true", help="同时把周报打印到 stdout")
+    w.set_defaults(func=cmd_weekly)
     d = sub.add_parser(
         "discover",
         help="信源自动发现：网页/OPML/远程清单 → 待审队列，--accept 采纳后写入 feeds.json")

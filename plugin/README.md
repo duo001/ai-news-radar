@@ -44,6 +44,7 @@
 | POST | `/translate` | 免费机翻，body `{limit?}`；翻完回写 `plugin-news.json` 并返回最新列表 |
 | POST | `/read` | 标记已读，body `{links:[url…], read:true\|false}`；状态存 `data/news-read.json` |
 | POST | `/read-all` | 当前列表全部已读，body `{}` |
+| POST | `/weekly` | 生成周报，body `{days?,perTopic?,limit?}`；跑 `radar.py weekly` 并返回 `{path, markdown}` |
 
 所有响应 `{ok:true,...}` 或 `{ok:false,error}`，`cache-control: no-store`。
 

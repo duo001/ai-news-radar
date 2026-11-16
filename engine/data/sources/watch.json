@@ -1,0 +1,9 @@
+{
+  "_comment": "关键词关注列表。命中的资讯会在面板高亮并可一键筛选；纯英文词按整词匹配，中文按子串匹配。改动即时生效，无需重启。",
+  "keywords": [
+    { "term": "mcp", "enabled": true },
+    { "term": "agent", "enabled": true },
+    { "term": "claude code", "enabled": true },
+    { "term": "免费额度", "enabled": true }
+  ]
+}

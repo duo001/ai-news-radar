@@ -337,8 +337,7 @@
         "官方",
         "研究"
       ],
-      "enabled": false,
-      "disabled_reason": "当前网络环境连接超时（research.google 受限）"
+      "enabled": true
     },
     {
       "id": "microsoft-research",
@@ -1088,20 +1087,6 @@
       "enabled": true
     },
     {
-      "id": "anandtech",
-      "name": "AnandTech",
-      "url": "https://www.anandtech.com/rss/",
-      "kind": "rss",
-      "group": "硬件与芯片",
-      "tags": [
-        "hardware",
-        "chips",
-        "cpu",
-        "gpu"
-      ],
-      "enabled": true
-    },
-    {
       "id": "tomshardware",
       "name": "Tom's Hardware",
       "url": "https://www.tomshardware.com/feeds/all",
@@ -1146,31 +1131,6 @@
       ],
       "enabled": false,
       "disabled_reason": "健康检查自动停用：连续 3 次失败（最近错误：拉取失败且无缓存: <urlopen error [Errno 101] Network is unreachable>）"
-    },
-    {
-      "id": "engadget",
-      "name": "Engadget",
-      "url": "https://www.engadget.com/rss.xml",
-      "kind": "rss",
-      "group": "科技媒体",
-      "tags": [
-        "tech",
-        "gadgets"
-      ],
-      "enabled": true
-    },
-    {
-      "id": "gizmodo",
-      "name": "Gizmodo",
-      "url": "https://gizmodo.com/rss",
-      "kind": "rss",
-      "group": "科技媒体",
-      "tags": [
-        "tech",
-        "science"
-      ],
-      "enabled": false,
-      "disabled_reason": "健康检查自动停用：连续 4 次失败（最近错误：拉取失败且无缓存: HTTP Error 403: Forbidden）"
     },
     {
       "id": "www-ithome-com-rss",

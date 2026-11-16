@@ -92,6 +92,22 @@ window.__ModuleLoader__.load({
       return out;
     }
 
+    // 卡片上的关键词关注胶囊（🔖 标记，点击可按该词筛选）；模块级纯渲染
+    function watchChips(it, watchState) {
+      const hits = Array.isArray(it.watch_hits) ? it.watch_hits : [];
+      if (!hits.length) return [];
+      const [activeWatch, setActiveWatch] = watchState || ['', () => {}];
+      return [h('div', { className: 'ain-watch', key: 'wa' },
+        hits.map(t => h('button', {
+          className: 'ain-watch-chip' + (activeWatch === t ? ' active' : ''), key: t,
+          title: `关注词「${t}」命中，点击只看该词`,
+          onClick: (ev) => {
+            ev.preventDefault(); ev.stopPropagation();
+            setActiveWatch(activeWatch === t ? '' : t);
+          },
+        }, `🔖 ${t}`)))];
+    }
+
     function todayCount(news) {
       const today = new Date(); today.setHours(0,0,0,0);
       return news.filter(it => it.published && new Date(it.published) >= today).length;
@@ -215,6 +231,37 @@ window.__ModuleLoader__.load({
   background:#fffbe6; color:#ad6800; border:1px solid #ffe58f; cursor:pointer; user-select:none; }
 .ain-code:hover { background:#fff1b8; }
 .ain-code.copied { background:#f6ffed; color:#389e0d; border-color:#b7eb8f; }
+.ain-watch { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.ain-watch-chip { padding:1px 7px; border-radius:10px; font-size:10px; border:1px solid #ffd591;
+  cursor:pointer; font-family:inherit; line-height:1.6; background:#fff7e6; color:#d46b08; }
+.ain-watch-chip:hover { background:#ffe7ba; }
+.ain-watch-chip.active { background:#d46b08; color:#fff; border-color:#d46b08; }
+.ain-watch-bar { margin-top:-6px; }
+.ain-watch-chip-bar { padding:2px 9px; border-radius:11px; font-size:11px; cursor:pointer;
+  border:1px solid #ffd591; background:#fff7e6; color:#d46b08; font-family:inherit; }
+.ain-watch-chip-bar:hover { border-color:#d46b08; }
+.ain-watch-chip-bar.active { background:#d46b08; border-color:#d46b08; color:#fff; }
+.ain-modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+  display:flex; align-items:center; justify-content:center; padding:24px; }
+.ain-modal { width:min(820px, 94vw); max-height:86vh; display:flex; flex-direction:column;
+  background:var(--dsw-alias-bg-base); border:1px solid var(--dsw-alias-border-l2);
+  border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.28); overflow:hidden; }
+.ain-modal-head { display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-bottom:1px solid var(--dsw-alias-border-l1); }
+.ain-modal-actions { display:flex; gap:8px; }
+.ain-modal-body { padding:16px 20px; overflow:auto; line-height:1.7; }
+.ain-modal-body h2 { font-size:18px; margin:6px 0 10px; }
+.ain-modal-body h3 { font-size:15px; margin:16px 0 8px; color:var(--dsw-alias-brand-primary); }
+.ain-modal-body h4 { font-size:13px; margin:12px 0 6px; }
+.ain-modal-body ul { margin:4px 0 8px; padding-left:20px; }
+.ain-modal-body li { margin:3px 0; font-size:12.5px; }
+.ain-modal-body blockquote { margin:6px 0; padding:6px 10px; border-left:3px solid var(--dsw-alias-brand-primary);
+  background:var(--dsw-alias-bg-layer-1); color:var(--dsw-alias-label-secondary); font-size:12px; border-radius:0 4px 4px 0; }
+.ain-modal-body table { border-collapse:collapse; margin:8px 0; font-size:12px; }
+.ain-modal-body td { border:1px solid var(--dsw-alias-border-l2); padding:4px 12px; }
+.ain-modal-body code { background:var(--dsw-alias-bg-layer-1); padding:1px 5px; border-radius:4px;
+  font-family:monospace; font-size:11px; color:#d46b08; }
+.ain-modal-body a { color:var(--dsw-alias-brand-primary); }
 
 .ain-group h3 { font-size:13px; margin:0 0 8px; color:var(--dsw-alias-label-secondary); font-weight:600; }
 .ain-group h3.time { color:var(--dsw-alias-brand-primary); }
@@ -278,8 +325,11 @@ window.__ModuleLoader__.load({
   const [timeRange, setTimeRange] = useState('all');   // 'all' | 'today' | '3d' | '7d'
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
       const [activeTopic, setActiveTopic] = useState(''); // 领域主题筛选（enrich.topics，空=不限）
+      const [activeWatch, setActiveWatch] = useState(''); // 关键词关注筛选（watch_hits，空=不限）
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
       const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
+      const [weekly, setWeekly] = useState(null);  // 周报 Markdown（null=未打开）
+      const [weeklyBusy, setWeeklyBusy] = useState(false);
       // 已读状态本地覆盖层：{link: true/false}，服务端返回值作为初值
       const [readMap, setReadMap] = useState({});
 
@@ -341,8 +391,9 @@ window.__ModuleLoader__.load({
       const news = (data && data.news) || [];
       const trans = (data && data.news_translations) || {};
       const failures = (data && data.news_failures) || [];
-      // 把组件的主题筛选状态注入模块级 enrichChips
+      // 把组件的主题/关注词筛选状态注入模块级纯渲染函数
       const chipsOf = (it, gc) => enrichChips(it, gc, [activeTopic, setActiveTopic]);
+      const watchOf = (it) => watchChips(it, [activeWatch, setActiveWatch]);
 
       // 已读：本地覆盖层优先，其次服务端下发的 it.read
       const isRead = (it) => (readMap[it.link] !== undefined
@@ -367,6 +418,20 @@ window.__ModuleLoader__.load({
         catch (_) { /* 忽略 */ }
       };
 
+      // 周报：后端跑 radar.py weekly，返回 Markdown 文本在弹窗中展示
+      const runWeekly = useCallback(async () => {
+        setWeeklyBusy(true);
+        setError('');
+        try {
+          const d = await api('/weekly', { method: 'POST', body: '{}' });
+          setWeekly(d.markdown || '（周报为空）');
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setWeeklyBusy(false);
+        }
+      }, []);
+
       // 搜索关键字：命中标题/摘要/中文译文任一即保留（大小写不敏感）
       const q = query.trim().toLowerCase();
       const matchQuery = (it) => {
@@ -379,6 +444,8 @@ window.__ModuleLoader__.load({
       };
       const matchTopic = (it) => !activeTopic
         || (Array.isArray(it.topics) && it.topics.includes(activeTopic));
+      const matchWatch = (it) => !activeWatch
+        || (Array.isArray(it.watch_hits) && it.watch_hits.includes(activeWatch));
       // 分组为主：按激活标签过滤 + 领域主题筛选 + 时间范围筛选 + 搜索
       let filtered = (activeTag !== '全部')
         ? news.filter((it) => it.group === activeTag)
@@ -386,6 +453,7 @@ window.__ModuleLoader__.load({
       filtered = filtered
         .filter((it) => inTimeRange(it.published, timeRange))
         .filter(matchTopic)
+        .filter(matchWatch)
         .filter(matchQuery)
         .filter((it) => !unreadOnly || !isRead(it));
       // 按分组分桶，组内按最新发布时间倒序（无日期放最后）
@@ -415,6 +483,14 @@ window.__ModuleLoader__.load({
         }
       }
       const topicList = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
+      // 关键词关注计数（同主题口径：跟随时间+搜索+当前分组，不含关注词维度）
+      const watchCounts = {};
+      for (const it of topicPool) {
+        for (const t of (Array.isArray(it.watch_hits) ? it.watch_hits : [])) {
+          watchCounts[t] = (watchCounts[t] || 0) + 1;
+        }
+      }
+      const watchList = Object.entries(watchCounts).sort((a, b) => b[1] - a[1]);
       // 分组按组内最新一条时间倒序输出（活跃分组排前面）
       const orderedGroups = Object.entries(groups)
         .map(([g, items]) => [g, items, items[0] && items[0].published ? new Date(items[0].published).getTime() : -1])
@@ -465,7 +541,12 @@ window.__ModuleLoader__.load({
             className: 'ain-btn',
             onClick: markAllRead,
             title: '把当前列表全部标记为已读',
-          }, '全部已读')),
+          }, '全部已读'),
+          h('button', {
+            className: 'ain-btn', disabled: weeklyBusy || refreshing,
+            onClick: () => runWeekly(),
+            title: '把近 7 天资讯按主题汇总成 Markdown 周报（含关注词专区）',
+          }, weeklyBusy ? '生成中…' : '📰 周报')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
           h('input', {
@@ -529,12 +610,22 @@ window.__ModuleLoader__.load({
             title: `${t}（${n} 条）`,
             onClick: () => setActiveTopic(activeTopic === t ? '' : t),
           }, `${t} ${n}`))),
+        // 关键词关注筛选（watch_hits，由 watch.json 配置驱动）
+        !refreshing && watchList.length > 0 && h('div', { className: 'ain-topics-bar ain-watch-bar' },
+          h('span', { className: 'ain-topics-label' }, '关注'),
+          watchList.map(([t, n]) => h('button', {
+            key: t,
+            className: 'ain-watch-chip-bar' + (activeWatch === t ? ' active' : ''),
+            title: `只看命中关注词「${t}」的资讯（${n} 条）`,
+            onClick: () => setActiveWatch(activeWatch === t ? '' : t),
+          }, `🔖 ${t} ${n}`))),
         failures.length > 0 && h('div', { className: 'ain-err' },
           `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
           : filtered.length === 0 ? h('div', { className: 'ain-empty' },
               q ? `没有匹配「${query.trim()}」的资讯`
                 : unreadOnly ? '没有未读资讯了，点「只看未读」切回来'
+                : activeWatch ? `当前筛选下没有命中关注词「${activeWatch}」的资讯`
                 : activeTopic ? `当前筛选下没有「${activeTopic}」主题的资讯`
                 : '当前筛选条件下暂无资讯')
           : viewMode === 'masonry'
@@ -570,7 +661,8 @@ window.__ModuleLoader__.load({
                 summary && h('div', { className: 's' }, summary),
                 isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
                   it._tags.map(t => h('span', { key: t }, t))),
-                ...(isDeal ? [] : chipsOf(it, gc)));
+                ...(isDeal ? [] : chipsOf(it, gc)),
+                ...watchOf(it));
             }))
           : orderedGroups.map(([gname, items]) =>
             h('div', { className: 'ain-group', key: gname },
@@ -606,8 +698,60 @@ window.__ModuleLoader__.load({
                   summary && h('div', { className: 's' }, summary),
                   isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
                     it._tags.map(t => h('span', { key: t }, t))),
-                  ...(isDeal ? [] : chipsOf(it, gc)));
-              }))));
+                  ...(isDeal ? [] : chipsOf(it, gc)),
+                  ...watchOf(it));
+              })))),
+        // 周报弹窗：轻量 Markdown 渲染（标题/列表/引用/表格/代码，够看即可）
+        weekly && h('div', { className: 'ain-modal-mask', onClick: () => setWeekly(null) },
+          h('div', { className: 'ain-modal', onClick: (e) => e.stopPropagation() },
+            h('div', { className: 'ain-modal-head' },
+              h('strong', null, 'AI 资讯周报（近 7 天）'),
+              h('div', { className: 'ain-modal-actions' },
+                h('button', {
+                  className: 'ain-btn',
+                  onClick: () => {
+                    const blob = new Blob([weekly], { type: 'text/markdown;charset=utf-8' });
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `weekly-${new Date().toISOString().slice(0, 10)}.md`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  },
+                }, '下载 .md'),
+                h('button', { className: 'ain-btn primary', onClick: () => setWeekly(null) }, '关闭'))),
+            h('div', { className: 'ain-modal-body', innerHTML: renderMd(weekly) })))
+    }
+
+    // 极简单列 Markdown → HTML（仅周报用，输入来自本地生成的可信文本，仍做转义）
+    function renderMd(md) {
+      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const inline = (s) => esc(s)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      const lines = md.split('\n');
+      const html = [];
+      let inUl = false, inTable = false;
+      const closeUl = () => { if (inUl) { html.push('</ul>'); inUl = false; } };
+      const closeTable = () => { if (inTable) { html.push('</table>'); inTable = false; } };
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (!line.trim()) { closeUl(); closeTable(); continue; }
+        if (/^###\s/.test(line)) { closeUl(); closeTable(); html.push(`<h4>${inline(line.slice(4))}</h4>`); }
+        else if (/^##\s/.test(line)) { closeUl(); closeTable(); html.push(`<h3>${inline(line.slice(3))}</h3>`); }
+        else if (/^#\s/.test(line)) { closeUl(); closeTable(); html.push(`<h2>${inline(line.slice(2))}</h2>`); }
+        else if (/^>\s?/.test(line)) { closeUl(); closeTable(); html.push(`<blockquote>${inline(line.replace(/^>\s?/, ''))}</blockquote>`); }
+        else if (/^\|\s/.test(line)) {
+          if (/^[\s|:-]+$/.test(line.replace(/\|/g, '|').trim())) continue; // 分隔行
+          if (!inTable) { html.push('<table>'); inTable = true; }
+          const cells = line.split('|').slice(1, -1).map((c) => `<td>${inline(c.trim())}</td>`).join('');
+          html.push(`<tr>${cells}</tr>`);
+        }
+        else if (/^[-*]\s/.test(line)) { closeTable(); if (!inUl) { html.push('<ul>'); inUl = true; } html.push(`<li>${inline(line.slice(2))}</li>`); }
+        else { closeUl(); closeTable(); html.push(`<p>${inline(line)}</p>`); }
+      }
+      closeUl(); closeTable();
+      return html.join('\n');
     }
 
     // ---------- 信源维护面板 ----------

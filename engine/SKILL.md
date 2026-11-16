@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.13.0
+version: 0.14.0
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -53,6 +53,11 @@ python3 radar.py translate --news --apply    # 合并进 news_translations.json�
 python3 radar.py translate --news --auto     # ★ 免费机翻：批量英译中直接入库，无需人工填表
 python3 radar.py translate --news --auto --limit 50   # 只翻 50 条（分批控量）
 python3 radar.py news --translate            # 采集 + 机翻一条命令走完
+
+# ===== 周报与关键词关注（v0.14）=====
+python3 radar.py weekly                       # 近 7 天周报 → data/weekly-YYYYMMDD.md
+python3 radar.py weekly --days 30 --per-topic 20   # 回溯 30 天、每主题最多 20 条
+# 关键词配置在 data/sources/watch.json（改完即生效，无需重启；面板「关注」条与周报专区共用）
 
 # ===== 已封存 legacy：GitHub 项目扫描（代码保留可用）=====
 python3 radar.py categories                  # 查看已注册 GitHub 类目与查询数
@@ -148,6 +153,8 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - 插件卡片：form 六色徽章、obtain 获取方式、topics 彩色胶囊、codes 黄色胶囊一键复制；deals.json 的手工情报也补齐同构四字段，并按 link 与采集结果去重（合并函数 `mergeDeals`）
 - **论坛类信源去噪（v0.13）**：论坛的「最新话题」RSS 混着二手交易、资费问询、求职闲聊帖，这类既不是资讯也归不进领域。`feeds.json` 里给源加 `"noise_filter": "forum"` 即启用（默认不启用，避免误伤正常资讯里含「出/收」的标题）；`enrich.noise_reason()` 按四类规则判定——交易帖（出售/转让/已出/「出V0 MAX」式开头）、求助问询帖（请教/老哥们/是不是…转好）、资费问询（实名了吗/转套餐）、闲聊帖（找工作/面试/吐槽）。**福利帖豁免**：命中「免费/领取/抽奖/迎新福利/送激活码」等白给信号时保留，`enrich.drop_noise()` 批量二分。目前 `forum-naixi-net-forum-php`（奶昔论坛）已标记，实测 20 条抓取→过滤 6 条，保留的都是免费 eSIM / 迎新福利 / 会员领取这类有价值的帖
 - **摘要补译（v0.13）**：翻译库按「标题必译、摘要可选」设计，早期实现里只要条目进了库就整体跳过，导致「标题已译、摘要空缺」的条目永远补不上。现在 `build_news_todo` 对这类条目产出 `only_summary` 任务，`auto_translate_news` 只送摘要文本、写入时保留原译文并另记 `summary_source`/`summary_translated_at`
+- **关键词关注（v0.14，`scripts/watch.py` + `data/sources/watch.json`）**：声明式配置 `{"keywords":[{"term":"mcp","enabled":true}]}`，改配置即时生效、零代码。纯 ASCII 词按整词匹配（`mcp` 不命中 `scmcp`，但也不匹配复数 `agents`，配词时注意单复数），中文走大小写不敏感子串。匹配范围是标题 + 摘要 + 中文译文（按 link 关联翻译库），命中条目带 `watch_hits` 列表，**纯渲染层计算、不入库**，历史数据可重算。面板有橙色「关注」筛选条（🔖 带计数），卡片上的命中词胶囊可点击直接筛选；配置缺失/损坏时功能静默关闭
+- **周报导出（v0.14，`radar.py weekly`）**：从 SQLite 读近 N 天（默认 7）资讯，套用 enrich + watch 后生成 Markdown 周报——总览表（条数/信源/关注命中/形态分布）、关注词命中专区、按 29 个主题分区（每主题默认 10 条，可 `--per-topic` 调）、未归类兜底。参数 `--days/--per-topic/--limit/--out/--print-md`，默认产物 `data/weekly-YYYYMMDD.md`。插件工具栏「📰 周报」按钮走 `POST /ai-news/weekly`，弹窗内轻量 Markdown 渲染并支持下载 .md
 
 ### 工作台形态：@local/ai-news-panel 插件
 

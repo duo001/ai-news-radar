@@ -6,7 +6,7 @@
 // 数据引擎（Python/feeds.py）零改动复用；本文件只是工作台外壳。
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const inject = ['webServer', 'subprocess'];
@@ -532,6 +532,24 @@ export async function apply(ctx) {
           ok: true, log: `${stdout}\n${stderr}`.trim(),
           suggestions: suggestions.suggestions, sources: feeds.sources,
         });
+        return;
+      }
+
+      // ---- 周报导出：跑 radar.py weekly 并回读 Markdown ----
+      if (req.method === 'POST' && route === '/weekly') {
+        const body = await readJsonBody(req);
+        const argv = ['weekly',
+          '--days', String(Number(body.days) > 0 ? Number(body.days) : 7),
+          '--per-topic', String(Number(body.perTopic) > 0 ? Number(body.perTopic) : 10),
+          '--limit', String(Number(body.limit) > 0 ? Number(body.limit) : 30)];
+        const { stdout, stderr } = await runRadar(argv, { graceMs: 180_000 });
+        const m = (stdout + '\n' + stderr).match(/周报已导出：(\S+\.md)/);
+        if (!m || !existsSync(m[1])) {
+          sendJson(res, 500, { ok: false, error: '周报生成失败，未找到输出文件' });
+          return;
+        }
+        const markdown = readFileSync(m[1], 'utf-8');
+        sendJson(res, 200, { ok: true, path: m[1], markdown, log: stdout.trim() });
         return;
       }
 

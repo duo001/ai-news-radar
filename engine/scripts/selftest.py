@@ -363,6 +363,56 @@ def test_collectors():
     collectors._cache_path("hn-test").unlink(missing_ok=True)
 
 
+def test_watch():
+    import tempfile, pathlib as _pl
+    import watch
+    tmp = _pl.Path(tempfile.mktemp(suffix=".json"))
+    orig = watch.WATCH_CONF
+    watch.WATCH_CONF = tmp
+    try:
+        # 配置缺失 → 静默关闭
+        check(watch.load_watch() == [], "watch 配置缺失时返回空列表")
+        tmp.write_text(
+            '{"keywords": ['
+            '{"term": "mcp", "enabled": true},'
+            '{"term": "agent", "enabled": true},'
+            '{"term": "免费额度", "enabled": true},'
+            '{"term": "disabled-word", "enabled": false}]}',
+            encoding="utf-8")
+        kws = watch.load_watch()
+        check(kws == ["mcp", "agent", "免费额度"], "只加载启用关键词且保序去重")
+
+        # ASCII 词边界：mcp 不命中 scmcp
+        e1 = {"title": "New scmcp tooling released", "summary": "", "link": "u1"}
+        check(watch.match_watch(e1, kws) == [], "ASCII 关注词按整词匹配，不命中子串")
+        e2 = {"title": "An MCP server for an agent runtime", "summary": "", "link": "u2"}
+        hits2 = watch.match_watch(e2, kws)
+        check("mcp" in hits2 and "agent" in hits2, "英文标题多词命中")
+        # 复数形态：整词边界不命中 agents（用户配的是 agent 单数）
+        e2b = {"title": "framework for autonomous agents", "summary": "", "link": "u2b"}
+        check("agent" not in watch.match_watch(e2b, kws), "整词边界不匹配复数 agents")
+        # 大小写不敏感
+        e3 = {"title": "AGENT framework update", "summary": "", "link": "u3"}
+        check("agent" in watch.match_watch(e3, kws), "英文关注词大小写不敏感")
+        # 中文子串 + 译文参与匹配
+        e4 = {"title": "某厂商发布公告", "summary": "", "link": "u4"}
+        trans = {"u4": {"zh_title": "新模型赠送免费额度", "zh_summary": ""}}
+        check("免费额度" in watch.match_watch(e4, kws, trans), "中文关注词命中译文标题")
+        # 摘要参与匹配
+        e5 = {"title": "Weekly digest", "summary": "covering the latest mcp ecosystem", "link": "u5"}
+        check("mcp" in watch.match_watch(e5, kws), "关注词匹配摘要")
+
+        # attach 批量 + summarize 统计
+        entries = [e1, e2, e3, e4, e5]
+        n = watch.attach_watch(entries, kws, trans)
+        check(n == 4 and all("watch_hits" in x for x in entries), "attach 标记命中条数并写字段")
+        stat = watch.summarize(entries)
+        check(stat.get("agent") == 2 and stat.get("mcp") == 2, "summarize 统计各词命中数")
+    finally:
+        watch.WATCH_CONF = orig
+        tmp.unlink(missing_ok=True)
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -862,6 +912,9 @@ def main():
     print("[17] 规则增强与结构化采集器")
     test_enrich()
     test_collectors()
+
+    print("[18] 关键词关注（watch）")
+    test_watch()
     print("\n全部自测通过 ✅")
 
 
