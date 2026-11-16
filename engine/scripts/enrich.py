@@ -6,7 +6,9 @@
 - form（内容形态）：freebie / deal / release / paper / tutorial / opensource / news
 - obtain（获取方式）：free / conditional / lottery / trial / promo / paid（仅福利类有意义）
 - topics（领域标签）：模型 / Agent / MCP / RAG / 推理部署 / 多模态 / 训练微调 /
-  工具框架 / 安全 / 硬件算力 / 政策合规 / 商业融资 / 评测榜单 / 开源
+  工具框架 / 安全 / 硬件算力 / 政策合规 / 商业融资 / 评测榜单 / 开源（AI 相关）
+  + 编程开发 / 云计算与基础设施 / 数据 / 消费电子 / 游戏 / 影音媒体 / 设计创意 /
+  产品与增长 / 职场商业 / 教育学习 / 金融财经 / 汽车出行 / 生活方式（通用领域，不局限 AI）
 - codes（兑换码/邀请码）：黄色胶囊一键复制
 
 用法：
@@ -16,6 +18,12 @@
 """
 
 import re
+
+
+def _w(pat):
+    """给英文词加词边界（中文不受影响）；把裸短词的子串误匹配（ev→ever、ar→car）挡掉。"""
+    return r"(?<![a-z0-9])" + pat + r"(?![a-z0-9])"
+
 
 # ---------------------------------------------------------------- 内容形态
 
@@ -87,6 +95,7 @@ def obtain_of(title, summary="", form=None):
 # ---------------------------------------------------------------- 领域标签
 
 _TOPIC_RULES = (
+    # ---------- AI 相关（先匹配，保证 AI 文章优先打 AI 标签）----------
     ("模型", r"\b(gpt|claude|gemini|llama|qwen|deepseek|kimi|mistral|gemma|o[134])\b|"
               r"大模型|模型(发布|升级|迭代)|新模型|frontier\s+model"),
     ("Agent", r"\bagent(s)?\b|智能体|自治体|copilot|多智能体|autonomous"),
@@ -99,20 +108,56 @@ _TOPIC_RULES = (
     ("训练微调", r"训练|微调|fine[\s-]?tun|lora|rlhf|预训练|pretrain|蒸馏|distill|数据集"),
     ("工具框架", r"框架|framework|\bsdk\b|library|\bcli\b|插件|plugin|工具链|toolkit|"
                 r"编程助手|coding\s+assistant"),
+    ("评测榜单", r"benchmark|评测|榜单|leaderboard|\bsota\b|排行|评测集|\beval\b"),
+    # ---------- 技术与工程（非 AI 专属）----------
+    ("编程开发", r"编程|开发|前端|后端|全栈|\bjavascript\b|typescript|python|java|golang|"
+                r"rust|node\.?js|react|vue|编程语言|代码|开源项目|api\s+设计|微服务|"
+                r"devops|\bci/cd\b|docker|kubernetes|\bk8s\b|git|数据库|sql|linux|"
+                r"web\s+development|software\s+engineering"),
     ("安全", r"安全|security|漏洞|vulnerab|攻击|attack|注入|prompt\s+injection|供应链|"
              r"supply[\s-]?chain|越狱|jailbreak|隐私|privacy|malware|恶意|"
-             r"rubygems?|npm\s+attack|数据泄露|breach|phishing|钓鱼"),
+             r"rubygems?|npm\s+attack|数据泄露|breach|phishing|钓鱼|零日|0day|"
+             r"勒索|ransomware|加密|encryption"),
+    ("云计算与基础设施", r"云计算|云服务|\baws\b|azure|\bgcp\b|云原生|serverless|"
+                       r"边缘计算|cdn|服务器|数据中心|infrastructure|\bvm\b|容器|"
+                       r"kubernetes|terraform|observability|可观测"),
+    ("数据", r"数据工程|数据分析|数据仓库|data\s+engineering|analytics|\betl\b|"
+            r"数据管道|pipeline|数据治理|bi\s+工具|可视化|dashboard|数据科学"),
     ("硬件算力", r"\bgpu\b|h100|h200|b200|gb200|算力|芯片|tpu|npu|数据中心|显存|"
-                r"infrastructure|accelerator"),
+                r"infrastructure|accelerator|半导体|semiconductor|处理器|cpu|arm|"
+                r"risc[\s-]?v|内存|存储硬件"),
+    # ---------- 行业与垂直领域 ----------
     ("政策合规", r"监管|regulat|合规|法案|政策|禁令|\bban\b|版权|著作权|copyright|"
-                r"欧盟|eu\s+ai\s+act"),
+                r"欧盟|eu\s+ai\s+act|反垄断|antitrust|诉讼|lawsuit|gdpr"),
     ("商业融资", r"融资|funding|估值|valuation|\bipo\b|收购|acquisition|营收|revenue|"
-                r"裁员|layoff"),
-    ("评测榜单", r"benchmark|评测|榜单|leaderboard|\bsota\b|排行|评测集|eval"),
+                r"裁员|layoff|创业|startup|独角兽|并购|财报|季度业绩"),
+    ("金融财经", r"金融|理财|支付|银行|crypto|加密货币|比特币|bitcoin|以太坊|ethereum|"
+                r"区块链|blockchain|" + _w(r"nft") + r"|股票|股市|基金|保险|fintech|"
+                r"数字人民币|支付清算|信贷|证券"),
+    ("消费电子", r"手机|智能手机|iphone|安卓|android|笔记本|平板|耳机|智能手表|"
+                r"消费电子|gadget|硬件新品|发布会|苹果|华为|小米|三星|可穿戴|"
+                + _w(r"vr") + r"|" + _w(r"ar\b") + r"|" + _w(r"xr\b")),
+    ("汽车出行", r"电动车|新能源汽车|自动驾驶|autonomous\s+driving|特斯拉|tesla|比亚迪|"
+                r"智能座舱|车载|网约车|充电桩|电动汽车|\bev\b|车企|轿车|suv|车型"),
+    ("游戏", r"游戏|gaming|" + _w(r"steam") + r"|epic\s+games|游戏主机|" + _w(r"ps5") +
+            r"|xbox|switch|手游|游戏开发|game\s+dev|电竞|独立游戏|3a|玩家"),
+    ("影音媒体", r"视频|流媒体|streaming|netflix|youtube|音乐|spotify|播客|podcast|"
+                r"电影|影视|短视频|直播|hbo|迪士尼|内容创作|自媒体|剧集|综艺|影院"),
+    ("设计创意", r"设计|design|" + _w(r"ui") + r"|" + _w(r"ux") + r"|figma|创意|平面设计|"
+                r"工业设计|品牌设计|排版|字体|3d\s+建模|动画制作|插画"),
+    ("产品与增长", r"产品经理|产品设计|用户增长|growth|运营|marketing|营销|seo|"
+                  r"转化率|saas|需求分析|用户体验|indie\s+hacker|独立开发"),
+    ("职场商业", r"职场|求职|面试|招聘|远程工作|remote\s+work|自由职业|freelance|"
+                r"管理|领导力|创业经验|副业|效率工具|生产力|productivity"),
+    ("教育学习", r"教育|学习|课程|教程体系|在线教育|mooc|知识付费|考试|学术|大学|"
+                r"科研|science|论文写作|自学"),
+    ("生活方式", r"健康|健身|医疗|医学|美食|旅行|旅游|家居|亲子|情感|消费|购物|"
+                r"电商|e[\s-]?commerce|亚马逊|amazon|生活"),
+    # ---------- 兜底类，放最后 ----------
     ("开源", r"开源|open[\s-]?source|\bgithub\b|apache|mit\s+licen|self[\s-]?host"),
 )
 
-_TOPIC_MAX = 4
+_TOPIC_MAX = 5
 
 
 def topics_of(title, summary=""):

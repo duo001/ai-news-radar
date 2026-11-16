@@ -65,15 +65,24 @@ window.__ModuleLoader__.load({
       }
     }
 
-    // 卡片底部的领域标签 + 兑换码胶囊（两种视图共用）
-    function enrichChips(it, gc) {
+    // 卡片底部的领域标签 + 兑换码胶囊（两种视图共用，模块级纯渲染；
+    // activeTopic 由组件内的 makeEnrichChips 注入，这里只负责无状态展示）
+    function enrichChips(it, gc, topicState) {
       const out = [];
+      const [activeTopic, setActiveTopic] = topicState || ['', () => {}];
       const topics = Array.isArray(it.topics) ? it.topics
         : (Array.isArray(it._tags) ? it._tags : []);
       if (topics.length) {
         out.push(h('div', { className: 'ain-topics', key: 'tp' },
-          topics.map(t => h('span', { className: 'ain-topic', key: t,
-            style: { '--group-color': gc } }, t))));
+          topics.map(t => h('button', {
+            className: 'ain-topic' + (activeTopic === t ? ' active' : ''), key: t,
+            style: { '--group-color': gc },
+            title: `只看「${t}」主题`,
+            onClick: (ev) => {
+              ev.preventDefault(); ev.stopPropagation();
+              setActiveTopic(activeTopic === t ? '' : t);
+            },
+          }, t))));
       }
       if (Array.isArray(it.codes) && it.codes.length) {
         out.push(h('div', { className: 'ain-codes', key: 'cd' },
@@ -184,9 +193,19 @@ window.__ModuleLoader__.load({
 .ain-form-badge.opensource { background:#f0f5ff; color:#2f54eb; border-color:#adc6ff; }
 .ain-obtain { font-size:10px; color:var(--dsw-alias-label-secondary); margin-left:6px; }
 .ain-topics { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
-.ain-topic { padding:1px 7px; border-radius:10px; font-size:10px;
+.ain-topic { padding:1px 7px; border-radius:10px; font-size:10px; border:none; cursor:pointer;
+  font-family:inherit; line-height:1.6;
   background:color-mix(in srgb, var(--group-color, var(--dsw-alias-brand-primary)) 10%, transparent);
   color:var(--dsw-alias-label-secondary); }
+.ain-topic:hover { background:color-mix(in srgb, var(--group-color, var(--dsw-alias-brand-primary)) 22%, transparent); }
+.ain-topic.active { background:var(--group-color, var(--dsw-alias-brand-primary)); color:#fff; }
+.ain-topics-bar { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin:-4px 0 12px; }
+.ain-topics-label { font-size:11px; color:var(--dsw-alias-label-tertiary); margin-right:2px; }
+.ain-topic-chip { padding:2px 9px; border-radius:11px; font-size:11px; cursor:pointer;
+  border:1px solid var(--dsw-alias-border-l2); background:transparent; color:var(--dsw-alias-label-secondary);
+  font-family:inherit; }
+.ain-topic-chip:hover { border-color:var(--dsw-alias-brand-primary); }
+.ain-topic-chip.active { background:var(--dsw-alias-brand-primary); border-color:var(--dsw-alias-brand-primary); color:#fff; }
 .ain-codes { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
 .ain-code { padding:2px 8px; border-radius:5px; font-size:11px; font-weight:700; font-family:monospace;
   background:#fffbe6; color:#ad6800; border:1px solid #ffe58f; cursor:pointer; user-select:none; }
@@ -254,6 +273,7 @@ window.__ModuleLoader__.load({
   const [viewMode, setViewMode] = useState('list');   // 'list' | 'masonry'
   const [timeRange, setTimeRange] = useState('all');   // 'all' | 'today' | '3d' | '7d'
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
+      const [activeTopic, setActiveTopic] = useState(''); // 领域主题筛选（enrich.topics，空=不限）
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
 
       const load = useCallback(async (refresh) => {
@@ -314,23 +334,29 @@ window.__ModuleLoader__.load({
       const news = (data && data.news) || [];
       const trans = (data && data.news_translations) || {};
       const failures = (data && data.news_failures) || [];
+      // 把组件的主题筛选状态注入模块级 enrichChips
+      const chipsOf = (it, gc) => enrichChips(it, gc, [activeTopic, setActiveTopic]);
 
       // 搜索关键字：命中标题/摘要/中文译文任一即保留（大小写不敏感）
       const q = query.trim().toLowerCase();
-      // 分组为主：按激活标签过滤 + 时间范围筛选 + 搜索
+      const matchQuery = (it) => {
+        if (!q) return true;
+        const tr = trans[it.link] || {};
+        const zh = (tr.zh_title || '') + ' ' + (tr.zh_summary || '');
+        return (it.title || '').toLowerCase().includes(q)
+          || (it.summary || '').toLowerCase().includes(q)
+          || zh.toLowerCase().includes(q);
+      };
+      const matchTopic = (it) => !activeTopic
+        || (Array.isArray(it.topics) && it.topics.includes(activeTopic));
+      // 分组为主：按激活标签过滤 + 领域主题筛选 + 时间范围筛选 + 搜索
       let filtered = (activeTag !== '全部')
         ? news.filter((it) => it.group === activeTag)
         : news;
-      filtered = filtered.filter((it) => inTimeRange(it.published, timeRange));
-      if (q) {
-        filtered = filtered.filter((it) => {
-          const tr = trans[it.link] || {};
-          const zh = (tr.zh_title || '') + ' ' + (tr.zh_summary || '');
-          return (it.title || '').toLowerCase().includes(q)
-            || (it.summary || '').toLowerCase().includes(q)
-            || zh.toLowerCase().includes(q);
-        });
-      }
+      filtered = filtered
+        .filter((it) => inTimeRange(it.published, timeRange))
+        .filter(matchTopic)
+        .filter(matchQuery);
       // 按分组分桶，组内按最新发布时间倒序（无日期放最后）
       const groups = {};
       for (const it of filtered) {
@@ -344,18 +370,20 @@ window.__ModuleLoader__.load({
       for (const k of Object.keys(groups)) groups[k].sort(sortNewest);
       // 标签计数：跟随时间范围+搜索（不含分组维度），切换日期后各分组数量同步更新
       const pool = (timeRange === 'all') ? news : news.filter((it) => inTimeRange(it.published, timeRange));
-      const searchedPool = q
-        ? pool.filter((it) => {
-            const tr = trans[it.link] || {};
-            const zh = (tr.zh_title || '') + ' ' + (tr.zh_summary || '');
-            return (it.title || '').toLowerCase().includes(q)
-              || (it.summary || '').toLowerCase().includes(q)
-              || zh.toLowerCase().includes(q);
-          })
-        : pool;
+      const searchedPool = pool.filter(matchQuery);
       const tagCounts = {};
       for (const it of searchedPool) tagCounts[it.group] = (tagCounts[it.group] || 0) + 1;
       const tagList = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+      // 领域主题计数（跟随时间+搜索+当前分组，不含主题维度，避免选了主题后选项消失）
+      const topicPool = searchedPool
+        .filter((it) => activeTag === '全部' || it.group === activeTag);
+      const topicCounts = {};
+      for (const it of topicPool) {
+        for (const t of (Array.isArray(it.topics) ? it.topics : [])) {
+          topicCounts[t] = (topicCounts[t] || 0) + 1;
+        }
+      }
+      const topicList = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
       // 分组按组内最新一条时间倒序输出（活跃分组排前面）
       const orderedGroups = Object.entries(groups)
         .map(([g, items]) => [g, items, items[0] && items[0].published ? new Date(items[0].published).getTime() : -1])
@@ -447,10 +475,26 @@ window.__ModuleLoader__.load({
             className: 'ain-tag' + (activeTag === g ? ' active' : ''),
             onClick: () => setActiveTag(g),
           }, `${g} ${n}`))),
+        // 领域主题筛选（enrich.topics，跨信源的内容分类）
+        !refreshing && topicList.length > 1 && h('div', { className: 'ain-topics-bar' },
+          h('span', { className: 'ain-topics-label' }, '主题'),
+          h('button', {
+            className: 'ain-topic-chip' + (!activeTopic ? ' active' : ''),
+            onClick: () => setActiveTopic(''),
+          }, '不限'),
+          topicList.slice(0, 24).map(([t, n]) => h('button', {
+            key: t,
+            className: 'ain-topic-chip' + (activeTopic === t ? ' active' : ''),
+            title: `${t}（${n} 条）`,
+            onClick: () => setActiveTopic(activeTopic === t ? '' : t),
+          }, `${t} ${n}`))),
         failures.length > 0 && h('div', { className: 'ain-err' },
           `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
-          : filtered.length === 0 && q ? h('div', { className: 'ain-empty' }, `没有匹配「${query.trim()}」的资讯`)
+          : filtered.length === 0 ? h('div', { className: 'ain-empty' },
+              q ? `没有匹配「${query.trim()}」的资讯`
+                : activeTopic ? `当前筛选下没有「${activeTopic}」主题的资讯`
+                : '当前筛选条件下暂无资讯')
           : viewMode === 'masonry'
           ? h('div', { className: 'ain-masonry' },
             filtered.map((it) => {
@@ -482,7 +526,7 @@ window.__ModuleLoader__.load({
                 summary && h('div', { className: 's' }, summary),
                 isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
                   it._tags.map(t => h('span', { key: t }, t))),
-                ...(isDeal ? [] : enrichChips(it, gc)));
+                ...(isDeal ? [] : chipsOf(it, gc)));
             }))
           : orderedGroups.map(([gname, items]) =>
             h('div', { className: 'ain-group', key: gname },
@@ -516,7 +560,7 @@ window.__ModuleLoader__.load({
                   summary && h('div', { className: 's' }, summary),
                   isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
                     it._tags.map(t => h('span', { key: t }, t))),
-                  ...(isDeal ? [] : enrichChips(it, gc)));
+                  ...(isDeal ? [] : chipsOf(it, gc)));
               }))));
     }
 

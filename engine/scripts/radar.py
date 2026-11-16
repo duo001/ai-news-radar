@@ -319,7 +319,7 @@ def _latest_run():
 def cmd_translate(args):
     # --news：资讯翻译通道（按文章 link 建 key，独立存储）
     if getattr(args, "news", False):
-        payload = json.loads(_latest_news().read_text(encoding="utf-8"))
+        payload = _news_payload_for_translate()
         entries = payload.get("news", [])
         if args.coverage:
             done, pending, native = i18n.news_coverage(entries)
@@ -447,6 +447,34 @@ def _latest_news():
     if sample.exists():
         return sample
     raise FileNotFoundError("data/ 下没有 news-*.json，先跑一次 news")
+
+
+def _news_payload_for_translate():
+    """翻译/重渲染要基于**最全的一份**资讯，而不是最新的 news-*.json。
+
+    插件日常走 `news --quiet --json-out plugin-news.json`（不产 news-*.json），
+    会导致最新 news-*.json 停在很久以前、漏掉新增条目，机翻因此「处理 0 条」。
+    优先用 plugin-news.json（条目通常最新最全），回退最新 news-*.json。
+    """
+    plugin_json = DATA / "plugin-news.json"
+    candidates = []
+    if plugin_json.exists():
+        candidates.append(plugin_json)
+    candidates.extend(sorted(DATA.glob("news-*.json")))
+    sample = DATA / "sample-news.json"
+    if sample.exists():
+        candidates.append(sample)
+    best, best_n = None, -1
+    for p in candidates:
+        try:
+            n = len(json.loads(p.read_text(encoding="utf-8")).get("news", []))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if n > best_n:
+            best, best_n = p, n
+    if best is None:
+        raise FileNotFoundError("data/ 下没有可翻译的资讯文件，先跑一次 news")
+    return json.loads(best.read_text(encoding="utf-8"))
 
 
 def cmd_news(args):

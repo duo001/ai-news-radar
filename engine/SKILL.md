@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.11.0
+version: 0.12.0
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -143,7 +143,8 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - **已启用 2 路**（当前网络实测可达）：① `openrouter-free-models`——拉 `openrouter.ai/api/v1/models`，按 `:free` 后缀或 pricing 全 0 识别免费模型，只留近 14 天新增，产出「OpenRouter 新免费模型」福利条目 ② `hackernews-ai`——多关键词打 `hn.algolia.com` 搜索 API，objectID 去重 + 标题 AI 正则二次过滤，摘要带 HN 分数/评论数
 - **预置停用 4 路**（`enabled:false` + `disabled_reason`，网络具备后改 true 并在 `_COLLECTOR_FUNCS` 注册处理函数即可）：bluesky（public.api.bsky.app）、v2ex、linux.do（Discourse JSON）、reddit；停用原因均为本环境连接超时
 - 采集器与 feeds 输出**完全同构**的 entry（title/link/summary/published/source_id/source_name/group/kind），同一套缓存（`data/cache/collectors/`，TTL 3h，原子写）、同一套单源容错与离线回退、同一张 SQLite 表，按 link 去重合并
-- **enrich.py 规则版正交分类**（零 AI 调用、渲染层可对历史数据重算）：每条资讯补四个字段——`form`（freebie 福利/deal 优惠/paper 论文/release 发布/tutorial 教程/opensource 开源/news 资讯，按精确度排序的正则规则）、`obtain`（仅福利/优惠有值：lottery 抽奖 > promo 推广 > trial 试用 > conditional 有条件 > paid 付费，兜底 free 直接领）、`topics`（模型/Agent/MCP/RAG/推理部署等 14 个中文标签，最多 4 个）、`codes`（邀请码/兑换码，支持显式标注、4-4-4 分段、10-40 位长串，排除纯数字与常见英文词）
+- **enrich.py 规则版正交分类**（零 AI 调用、渲染层可对历史数据重算）：每条资讯补四个字段——`form`（freebie 福利/deal 优惠/paper 论文/release 发布/tutorial 教程/opensource 开源/news 资讯，按精确度排序的正则规则）、`obtain`（仅福利/优惠有值：lottery 抽奖 > promo 推广 > trial 试用 > conditional 有条件 > paid 付费，兜底 free 直接领）、`topics`（**v0.12 起 27 个中文标签、每条最多 5 个，不再局限 AI**：14 个 AI/工程标签——模型/Agent/MCP/RAG/推理部署/多模态/训练微调/工具框架/评测榜单/编程开发/安全/云计算与基础设施/数据/硬件算力；13 个通用领域——政策合规/商业融资/金融财经/消费电子/汽车出行/游戏/影音媒体/设计创意/产品与增长/职场商业/教育学习/生活方式/开源。短英文词（ev/vr/ar/nft/ui/ux/ps5 等）统一加词边界，避免 ever 误命中 ev、regular 误命中 vr）、`codes`（邀请码/兑换码，支持显式标注、4-4-4 分段、10-40 位长串，排除纯数字与常见英文词）。插件面板有独立的「主题」筛选条，卡片上的标签可点击直接筛选
+- **翻译数据源选择（v0.12 修复）**：`translate --news --auto` 不再只看最新 `news-*.json`，改为 `_news_payload_for_translate()` 自动选条目最全的一份（优先插件固定文件 `plugin-news.json`，回退 news-*.json / sample）。否则插件日常只写 plugin-news.json、不产 news-*.json 时，最新 news 文件会停在很久以前，机翻永远「处理 0 条」而面板上仍有大量英文
 - 插件卡片：form 六色徽章、obtain 获取方式、topics 彩色胶囊、codes 黄色胶囊一键复制；deals.json 的手工情报也补齐同构四字段，并按 link 与采集结果去重（合并函数 `mergeDeals`）
 
 ### 工作台形态：@local/ai-news-panel 插件

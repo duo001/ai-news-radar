@@ -161,7 +161,20 @@ def test_enrich():
     # 领域标签
     tp = enrich.topics_of("Claude 与 GPT 模型的 MCP server 安全漏洞分析")
     check({"模型", "MCP", "安全"} <= set(tp), f"多领域标签命中: {tp}")
-    check(len(enrich.topics_of(" ".join(["agent"] * 20))) <= 4, "领域标签最多 4 个")
+    check(len(enrich.topics_of(" ".join(["agent"] * 20))) <= enrich._TOPIC_MAX,
+          f"领域标签最多 {enrich._TOPIC_MAX} 个")
+
+    # 通用（非 AI）领域标签 + 短词边界回归（v0.12 扩充分类）
+    check("游戏" in enrich.topics_of("Steam 玩家期待 GTA6 新主机游戏发布"), "游戏领域命中")
+    check("汽车出行" in enrich.topics_of("比亚迪新款电动车自动驾驶升级，车载座舱体验提升"),
+          "汽车出行领域命中")
+    check("金融财经" in enrich.topics_of("比特币与区块链支付在银行 fintech 场景落地"),
+          "金融财经领域命中")
+    # ev 不得命中 ever/every，ar 不得命中 car 之外的子串
+    check("汽车出行" not in enrich.topics_of("Every developer should write tests"),
+          "ev 词边界：every 不命中汽车")
+    check("消费电子" not in enrich.topics_of("Learn regular expressions step by step"),
+          "vr 词边界：regular 不命中消费电子")
 
     # 兑换码：显式标注、分段码、长码；排除纯数字/常见词/无字母
     codes = enrich.codes_of("邀请码: ABCD-EFGH-IJKL 限时", "promo code ZXCV9999")
