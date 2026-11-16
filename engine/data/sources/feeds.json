@@ -643,9 +643,10 @@
       "name": "奶昔论坛最新话题",
       "url": "https://forum.naixi.net/forum.php?mod=rss",
       "kind": "rss",
-      "group": "开发者社区",
+      "group": "个人与社区",
       "tags": [],
-      "enabled": true
+      "enabled": true,
+      "noise_filter": "forum"
     },
     {
       "id": "github-blog-feed-2",

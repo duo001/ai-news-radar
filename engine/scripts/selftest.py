@@ -78,6 +78,29 @@ def test_mt():
     big = mt._chunk_texts(["x" * 999], 4, 250)
     check(big == [["x" * 999]], "超长单条自成一批")
 
+    # 2) 摘要补译：已有译文但摘要空缺的条目要重新进清单（只补摘要）
+    tmp0 = tempfile.mktemp(suffix=".json")
+    old0 = i18n.NEWS_STORE
+    i18n.NEWS_STORE = _pl.Path(tmp0)
+    try:
+        i18n.save_news_store({
+            "https://x/1": {"zh_title": "已有标题", "zh_summary": "", "source_title": "T"},
+            "https://x/2": {"zh_title": "完整", "zh_summary": "有摘要"},
+        })
+        todo = i18n.build_news_todo([
+            {"link": "https://x/1", "title": "T", "summary": "English summary"},
+            {"link": "https://x/2", "title": "U", "summary": "done"},
+            {"link": "https://x/3", "title": "Fresh", "summary": "New"},
+        ])["items"]
+        by = {i["link"]: i for i in todo}
+        check(by["https://x/1"].get("only_summary") is True, "标题已译/摘要空缺 → 摘要补译任务")
+        check("https://x/2" not in by, "完整译文不再进清单")
+        check(by["https://x/3"].get("only_summary") is None, "新条目走完整翻译")
+    finally:
+        i18n.NEWS_STORE = old0
+        if _pl.Path(tmp0).exists():
+            _pl.Path(tmp0).unlink()
+
     tmp = tempfile.mktemp(suffix=".json")
     old_store = i18n.NEWS_STORE
     i18n.NEWS_STORE = _pl.Path(tmp)
@@ -230,6 +253,31 @@ def test_enrich():
         {"form": "freebie", "obtain": "free", "codes": ["X"]},
     ])
     check(stat["with_codes"] == 1 and stat["forms"]["freebie"] == 1, "summarize 分布统计")
+
+    # 论坛噪音：交易帖/问询帖丢弃，福利帖保留（奶昔论坛真实样本）
+    noise = [
+        "出一张全新3HK DIY大湾区储值卡",
+        "出V0 MAX，V0，海豚小白卡和B0",
+        "[已出]出已激活Lebara uk 9.9r",
+        "voxi这样是不是就转好paygo了",
+        "德国沃达丰现在强制实名了吗",
+        "北京联通请教转套餐",
+        "血亏4000人民币，孩子被topcashback反薅了，快来救救孩子",
+    ]
+    keep = [
+        "🇭🇰 香港八达通迎新福利｜消费 HK$100 送 HK$150！",
+        "b站限时领一周大会员",
+        "免费1GB流量eSIM 大陆可以用 多地区 🈚aff",
+        "我们做了一个100%免费公益的应用（送隔壁终身版激活码）",
+        "OpenAI 发布新模型",
+        "KTC 预告 6K Mini LED 显示器 M32P2",
+    ]
+    for t in noise:
+        check(enrich.noise_reason(t) is not None, f"噪音识别: {t[:18]}")
+    for t in keep:
+        check(enrich.noise_reason(t) is None, f"福利/资讯不误伤: {t[:18]}")
+    kept, dropped = enrich.drop_noise([{"title": t} for t in noise + keep])
+    check(len(dropped) == len(noise) and len(kept) == len(keep), "drop_noise 批量二分")
 
 
 def test_collectors():

@@ -158,6 +158,10 @@ window.__ModuleLoader__.load({
   transition:box-shadow .15s ease, transform .15s ease, border-color .15s ease; }
 .ain-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--group-color, var(--dsw-alias-border-l2)); }
 .ain-item:hover { border-color:var(--dsw-alias-brand-primary); box-shadow:0 4px 16px rgba(0,0,0,.08); transform:translateY(-1px); }
+/* 已读：整体降到半透明，hover 时恢复，避免干扰浏览但保留可回看 */
+.ain-item.ain-read { opacity:.5; }
+.ain-item.ain-read:hover { opacity:1; }
+.ain-item.ain-read .t { font-weight:500; }
 .ain-item .meta-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
 .ain-avatar { width:22px; height:22px; border-radius:6px; background:var(--group-color, var(--dsw-alias-brand-primary));
   color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
@@ -275,6 +279,9 @@ window.__ModuleLoader__.load({
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
       const [activeTopic, setActiveTopic] = useState(''); // 领域主题筛选（enrich.topics，空=不限）
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
+      const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
+      // 已读状态本地覆盖层：{link: true/false}，服务端返回值作为初值
+      const [readMap, setReadMap] = useState({});
 
       const load = useCallback(async (refresh) => {
         if (refresh) setRefreshing(true); else setLoading(true);
@@ -337,6 +344,29 @@ window.__ModuleLoader__.load({
       // 把组件的主题筛选状态注入模块级 enrichChips
       const chipsOf = (it, gc) => enrichChips(it, gc, [activeTopic, setActiveTopic]);
 
+      // 已读：本地覆盖层优先，其次服务端下发的 it.read
+      const isRead = (it) => (readMap[it.link] !== undefined
+        ? readMap[it.link] : !!it.read);
+      const unreadCount = news.filter((it) => !isRead(it)).length;
+
+      // 点击卡片标记已读（乐观更新 + 后台落盘，失败不回滚只影响下次刷新）
+      const markRead = (it) => {
+        if (!it || !it.link || isRead(it)) return;
+        setReadMap((m) => ({ ...m, [it.link]: true }));
+        api('/read', { method: 'POST', body: JSON.stringify({ links: [it.link], read: true }) })
+          .catch(() => { /* 网络抖动忽略，下次刷新以服务端为准 */ });
+      };
+      const markAllRead = async () => {
+        const links = news.map((it) => it.link).filter(Boolean);
+        setReadMap((m) => {
+          const next = { ...m };
+          for (const l of links) next[l] = true;
+          return next;
+        });
+        try { await api('/read-all', { method: 'POST', body: '{}' }); }
+        catch (_) { /* 忽略 */ }
+      };
+
       // 搜索关键字：命中标题/摘要/中文译文任一即保留（大小写不敏感）
       const q = query.trim().toLowerCase();
       const matchQuery = (it) => {
@@ -356,7 +386,8 @@ window.__ModuleLoader__.load({
       filtered = filtered
         .filter((it) => inTimeRange(it.published, timeRange))
         .filter(matchTopic)
-        .filter(matchQuery);
+        .filter(matchQuery)
+        .filter((it) => !unreadOnly || !isRead(it));
       // 按分组分桶，组内按最新发布时间倒序（无日期放最后）
       const groups = {};
       for (const it of filtered) {
@@ -424,7 +455,17 @@ window.__ModuleLoader__.load({
             className: 'ain-btn', disabled: translating || refreshing,
             onClick: () => runTranslate(),
             title: '把英文标题和摘要自动翻译成中文（免费通道，无需 API key）',
-          }, translating ? '翻译中…' : '自动翻译')),
+          }, translating ? '翻译中…' : '自动翻译'),
+          h('button', {
+            className: 'ain-btn' + (unreadOnly ? ' primary' : ''),
+            onClick: () => setUnreadOnly(!unreadOnly),
+            title: '只显示还没点开过的资讯',
+          }, `只看未读 ${unreadCount}`),
+          unreadCount > 0 && h('button', {
+            className: 'ain-btn',
+            onClick: markAllRead,
+            title: '把当前列表全部标记为已读',
+          }, '全部已读')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
           h('input', {
@@ -493,6 +534,7 @@ window.__ModuleLoader__.load({
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
           : filtered.length === 0 ? h('div', { className: 'ain-empty' },
               q ? `没有匹配「${query.trim()}」的资讯`
+                : unreadOnly ? '没有未读资讯了，点「只看未读」切回来'
                 : activeTopic ? `当前筛选下没有「${activeTopic}」主题的资讯`
                 : '当前筛选条件下暂无资讯')
           : viewMode === 'masonry'
@@ -510,9 +552,11 @@ window.__ModuleLoader__.load({
               const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                 ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
               return h('a', {
-                className: 'ain-item' + (isDeal ? ' deal' : ''), key: it.link,
+                className: 'ain-item' + (isDeal ? ' deal' : '') + (isRead(it) ? ' ain-read' : ''),
+                key: it.link,
                 href: it.link, target: '_blank', rel: 'noreferrer',
                 style: { '--group-color': gc },
+                onClick: () => markRead(it),
               },
                 h('div', { className: 'meta-row' },
                   h('div', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(it.source_name)),
@@ -544,9 +588,11 @@ window.__ModuleLoader__.load({
                 const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                   ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
                 return h('a', {
-                  className: 'ain-item' + (isDeal ? ' deal' : ''), key: it.link,
+                  className: 'ain-item' + (isDeal ? ' deal' : '') + (isRead(it) ? ' ain-read' : ''),
+                  key: it.link,
                   href: it.link, target: '_blank', rel: 'noreferrer',
                   style: { '--group-color': gc },
+                  onClick: () => markRead(it),
                 },
                   h('div', { className: 'meta-row' },
                     h('div', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(it.source_name)),

@@ -49,6 +49,31 @@ def _log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def _drop_flagged_noise(entries, log=None):
+    """对 feeds.json 里标了 noise_filter 的论坛类源做去噪，返回过滤后的列表。
+
+    只影响显式标记的源（如奶昔论坛最新话题），正常资讯源不受影响。
+    """
+    if not entries:
+        return entries
+    try:
+        flagged = {s["id"] for s in feeds.load_feeds(include_disabled=True)
+                   if s.get("noise_filter")}
+    except Exception:
+        return entries
+    if not flagged:
+        return entries
+    subset = [e for e in entries if e.get("source_id") in flagged]
+    if not subset:
+        return entries
+    kept, dropped = enrich.drop_noise(subset, log)
+    if not dropped:
+        return entries
+    kept_ids = {id(e) for e in kept}
+    return [e for e in entries
+            if e.get("source_id") not in flagged or id(e) in kept_ids]
+
+
 def _serialize_news(entries):
     """把 feeds 的 datetime 转成 ISO 字符串，便于 JSON 落盘。"""
     out = []
@@ -274,6 +299,7 @@ def cmd_run(args):
             have = {e.get("link") for e in news_entries}
             news_entries.extend(e for e in col_entries if e.get("link") not in have)
         news_failures.extend(col_failures)
+        news_entries = _drop_flagged_noise(news_entries, _log)
         enrich.attach(news_entries)
         _log(f"资讯合计 {len(news_entries)} 条，失败信源 {len(news_failures)} 个，去重 {news_dup} 条")
 
@@ -526,6 +552,9 @@ def cmd_news(args):
             _log(f"结构化采集器新增 {len(added)} 条（{len(col_entries)} 条去重后）")
     failures.extend(col_failures)
 
+    # ---- 论坛类源去噪（只对 feeds.json 标了 noise_filter 的源生效）----
+    entries = _drop_flagged_noise(entries, quiet_log)
+
     if not entries:
         if getattr(args, "quiet", False):
             return 1
@@ -556,6 +585,8 @@ def cmd_news(args):
     # （这样历史资讯不丢、跨采集合并，且 JSON 恒定在 30 天窗口内，体积可控）
     db_entries = db.query_news(days=db.RETENTION_DAYS)
     # 历史条目（含此前未增强的 RSS 数据）在渲染前统一补算 form/obtain/codes
+    # 历史入库的噪音（交易/问询帖）在渲染层也过滤掉，不必等下次在线采集清理
+    db_entries = _drop_flagged_noise(db_entries, None)
     enrich.attach(db_entries)
     if pruned and not getattr(args, "quiet", False):
         _log(f"保留策略：清理 {pruned} 条 {db.RETENTION_DAYS} 天前的过期资讯")

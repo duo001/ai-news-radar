@@ -164,9 +164,26 @@ def build_news_todo(entries):
     for e in entries:
         link = e.get("link", "")
         title = (e.get("title") or "").strip()
-        if not link or link in seen or link in store:
+        if not link or link in seen:
             continue
         seen.add(link)
+        summary = (e.get("summary") or "").strip()
+        existing = store.get(link)
+        if existing:
+            # 已有译文：只有「标题译了、摘要没译」才补一条摘要补译任务，
+            # 否则会出现标题全译但摘要长期空缺（曾漏掉 30 条）。
+            if not (existing.get("zh_title") and not existing.get("zh_summary") and summary):
+                continue
+            items.append({
+                "key": link, "link": link,
+                "source_title": existing.get("zh_title") or title,
+                "source_summary": summary[:400],
+                "source_name": e.get("source_name", ""),
+                "zh_title": existing.get("zh_title", ""),
+                "zh_summary": "",
+                "only_summary": True,
+            })
+            continue
         if not title or has_cjk(title):
             continue
         items.append({
@@ -271,6 +288,15 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
     for it in todo:
         title = (it.get("source_title") or "").strip()
         summary = (it.get("source_summary") or "").strip()[:300]
+        if it.get("only_summary"):
+            if not summary:
+                stat["skipped"] += 1
+                continue
+            slots.append({"link": it["link"], "title_idx": None,
+                          "summary_idx": len(texts), "title": title,
+                          "summary_src": summary, "only_summary": True})
+            texts.append(summary)
+            continue
         if not title:
             stat["skipped"] += 1
             continue
@@ -291,6 +317,21 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
     stat["provider"] = used
 
     for slot in slots:
+        if slot.get("only_summary"):
+            zh_summary = out[slot["summary_idx"]] if slot["summary_idx"] is not None else ""
+            if not zh_summary:
+                stat["failed"] += 1
+                continue
+            prev = store.get(slot["link"]) or {}
+            store[slot["link"]] = {**prev,
+                "zh_summary": zh_summary,
+                "source_summary": slot["summary_src"],
+                "summary_source": f"auto:{used}",
+                "summary_translated_at": __import__("datetime").datetime.now()
+                                          .astimezone().isoformat(timespec="seconds"),
+            }
+            stat["translated"] += 1
+            continue
         zh_title = out[slot["title_idx"]]
         if not zh_title:
             stat["failed"] += 1

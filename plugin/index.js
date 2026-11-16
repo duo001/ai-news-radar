@@ -34,6 +34,8 @@ const OPML_CATALOG_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'opml-catalog
 const SUGGESTIONS_JSON = path.join(ENGINE_DIR, 'data', 'source-suggestions.json');
 const NEWS_PROGRESS_JSON = path.join(ENGINE_DIR, 'data', 'news-progress.json');
 const PLUGIN_NEWS_JSON = path.join(ENGINE_DIR, 'data', 'plugin-news.json');
+// 已读状态：按 link 记 read_at，与 news.db 解耦（deals 条目不在 news 表里也能标记）
+const READ_JSON = path.join(ENGINE_DIR, 'data', 'news-read.json');
 // 内存缓存：切 tab 不再每次重读 6MB+ JSON，5 分钟内复用
 let newsCache = null;
 let newsCacheAt = 0;
@@ -111,6 +113,53 @@ function mergeDeals(deals, news) {
     out.push(it);
   }
   return out;
+}
+
+// ---------------------------------------------------------------- 已读状态
+
+let readCache = null;
+let readCacheAt = 0;
+const READ_CACHE_TTL_MS = 10 * 1000;   // 点一下已读立即生效，缓存只挡高频轮询
+
+async function readReadState() {
+  const now = Date.now();
+  if (readCache && (now - readCacheAt) < READ_CACHE_TTL_MS) return readCache;
+  try {
+    if (!existsSync(READ_JSON)) {
+      readCache = {};
+    } else {
+      const doc = JSON.parse(await readFile(READ_JSON, 'utf-8'));
+      readCache = (doc && typeof doc === 'object') ? (doc.read || {}) : {};
+    }
+  } catch {
+    readCache = {};
+  }
+  readCacheAt = now;
+  return readCache;
+}
+
+async function writeReadState(state) {
+  readCache = state;
+  readCacheAt = Date.now();
+  await mkdir(path.dirname(READ_JSON), { recursive: true });
+  const doc = { updated_at: new Date().toISOString(), read: state };
+  await writeFile(READ_JSON, JSON.stringify(doc), 'utf-8');
+}
+
+/** 给条目附加 read 字段（原地），返回同数组 */
+async function attachRead(items) {
+  const state = await readReadState();
+  for (const it of items) {
+    it.read = !!(it.link && state[it.link]);
+  }
+  return items;
+}
+
+/** 当前缓存列表里还有多少条未读 */
+function countUnread(state, cache) {
+  const news = (cache && cache.news) || [];
+  if (!news.length) return 0;
+  return news.filter((n) => n.link && !state[n.link]).length;
 }
 
 function runRadarNews({ offline = true, perSource = 8, only = '' } = {}) {
@@ -247,11 +296,51 @@ export async function apply(ctx) {
           const deals = await readDeals();
           sendJson(res, 200, { ok: true,
             translated: Object.keys(payload.news_translations || {}).length,
-            news: mergeDeals(dealsAsNewsItems(deals), payload.news || []),
+            news: await attachRead(mergeDeals(dealsAsNewsItems(deals), payload.news || [])),
             news_translations: payload.news_translations || {} });
         } catch (e) {
           sendJson(res, 500, { ok: false, error: String(e.message || e) });
         }
+        return;
+      }
+
+      // ---- 已读标记：POST { links: [url…], read: true|false } ----
+      if (req.method === 'POST' && route === '/read') {
+        const body = await readJsonBody(req);
+        const links = Array.isArray(body && body.links)
+          ? body.links.map(String).filter(Boolean)
+          : (body && body.link ? [String(body.link)] : []);
+        if (!links.length) {
+          sendJson(res, 400, { ok: false, error: 'links 不能为空' });
+          return;
+        }
+        const read = body.read !== false;
+        const state = { ...(await readReadState()) };
+        const now = new Date().toISOString();
+        for (const l of links) {
+          if (read) state[l] = now;
+          else delete state[l];
+        }
+        await writeReadState(state);
+        sendJson(res, 200, { ok: true, updated: links.length, read,
+          unread: countUnread(state, newsCache) });
+        return;
+      }
+
+      // ---- 全部已读：POST {} —— 把当前列表（含 deals）全部标记 ----
+      if (req.method === 'POST' && route === '/read-all') {
+        const state = { ...(await readReadState()) };
+        const now = new Date().toISOString();
+        let links = [];
+        try {
+          const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
+          links = (payload.news || []).map((n) => n.link).filter(Boolean);
+        } catch { /* 文件缺失就只处理 deals */ }
+        const deals = await readDeals();
+        links = links.concat(dealsAsNewsItems(deals).map((d) => d.link).filter(Boolean));
+        for (const l of links) state[l] = now;
+        await writeReadState(state);
+        sendJson(res, 200, { ok: true, updated: links.length, unread: 0 });
         return;
       }
 
@@ -280,14 +369,15 @@ export async function apply(ctx) {
         const now = Date.now();
         if (!refresh && newsCache && (now - newsCacheAt) < NEWS_CACHE_TTL_MS) {
           sendJson(res, 200, { ok: true, ...newsCache,
-            news: mergeDeals(dealItems, newsCache.news || []) });
+            news: await attachRead(mergeDeals(dealItems, newsCache.news || [])) });
           return;
         }
         const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
         payload.news = mergeDeals(dealItems, payload.news || []);
         newsCache = payload;
         newsCacheAt = now;
-        sendJson(res, 200, { ok: true, ...payload });
+        sendJson(res, 200, { ok: true, ...payload,
+          news: await attachRead(payload.news) });
         return;
       }
 

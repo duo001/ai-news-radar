@@ -264,6 +264,69 @@ def codes_of(title, summary="", limit=3):
     return found[:limit]
 
 
+# ---------------------------------------------------------------- 噪音判定
+# 论坛/羊毛类信源（奶昔论坛等）的 RSS 是「最新话题」流，混进大量二手交易、
+# 资费问询帖。这类既不是资讯也归不进任何领域，直接丢弃优于打标签。
+# 只对 feeds.json 里显式标了 noise_filter 的源生效（默认关闭），避免误伤
+# 正常资讯源里含「出」「收」等字的标题。
+
+_NOISE_RULES = (
+    ("交易帖", re.compile(
+        r"(出售|转让|求购|收购|闲置|包邮|代购|回收|已出|已售|出货|"
+        r"求带|走闲鱼|回血|甩卖|低价出|高价收)")),
+    # 标题以交易动词开头（「出一张…」「出V0 MAX」「收个…」）。排除「出品/出行/
+    # 发现/出于」等正常词，这类只在论坛类源生效。
+    ("交易帖", re.compile(r"^\s*[\[【(（]?(出|收|求|转|清)(?!品|行|版|发|现|于|自|了|售|问|学|账|让)")),
+    ("求助/问询帖", re.compile(
+        r"(请教|求问|求推荐|老哥们|大佬们|救救|怎么办|怎么弄|"
+        r"有没有.{0,14}(推荐|渠道|办法)|是不是.{0,3}(要|能|可以|该|转|换|好|行|办)|"
+        r"靠谱吗|值得吗|哪个好|能通过.{0,20}吗)")),
+    ("资费问询", re.compile(r"((实名|认证).{0,2}(吗|了|的|？|\?)|转套餐|换套餐|改套餐|"
+                            r"转网|保号|靓号|漫游费|套餐(怎么|如何|推荐))")),
+    # 论坛纯闲聊/求职帖：没有资讯价值（只在标了 noise_filter 的源生效）
+    ("闲聊帖", re.compile(r"(找工作|求职|面试经历|内推|上岸|简历|离职|裁员|"
+                          r"同事|老板|吐槽|好难|求助各位|求支招)")),
+)
+
+# 明确是「白给福利」的标题：即使命中上面的问询规则也保留
+# （例如「我们做了一个免费公益应用（送激活码）」是值得看的内容）
+_GIVEAWAY_GUARD = re.compile(
+    r"(免费|白嫖|0元|零元|领取|抽奖|赠送|福利|限时领|送.{0,8}(激活码|会员|额度|体验)|"
+    r"迎新|新人礼|优惠码|折扣码|返现)")
+
+
+def noise_reason(title, summary=""):
+    """返回噪音原因（字符串），不是噪音返回 None。"""
+    text = f"{title or ''} {summary or ''}".strip()
+    if not text:
+        return None
+    title = title or ""
+    # 交易帖优先于福利豁免：标题以「出/收」开头的一律按交易处理
+    for reason, pat in _NOISE_RULES:
+        if pat.search(title):
+            if reason == "求助/问询帖" and _GIVEAWAY_GUARD.search(title):
+                return None
+            return reason
+    return None
+
+
+def drop_noise(entries, log=None):
+    """过滤噪音条目，返回 (保留列表, 丢弃列表)。"""
+    kept, dropped = [], []
+    for e in entries:
+        reason = noise_reason(e.get("title"), e.get("summary"))
+        if reason:
+            dropped.append({"title": e.get("title"), "reason": reason,
+                            "source": e.get("source_name")})
+        else:
+            kept.append(e)
+    if dropped and log:
+        log(f"  过滤噪音 {len(dropped)} 条（交易/问询帖）")
+        for d in dropped[:5]:
+            log(f"    - [{d['reason']}] {(d['title'] or '')[:44]}")
+    return kept, dropped
+
+
 # ---------------------------------------------------------------- 对外接口
 
 def enrich_entry(entry):

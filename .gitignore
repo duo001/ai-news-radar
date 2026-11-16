@@ -3,6 +3,8 @@
 **/__pycache__/
 *.pyc
 **/plugin-news.json
+**/news-read.json
+**/test-naixi.json
 **/news-20*.json
 **/news-20*.md
 **/news-20*.html

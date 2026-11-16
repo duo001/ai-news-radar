@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.12.1
+version: 0.13.0
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -146,12 +146,15 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - **enrich.py 规则版正交分类**（零 AI 调用、渲染层可对历史数据重算）：每条资讯补四个字段——`form`（freebie 福利/deal 优惠/paper 论文/release 发布/tutorial 教程/opensource 开源/news 资讯，按精确度排序的正则规则）、`obtain`（仅福利/优惠有值：lottery 抽奖 > promo 推广 > trial 试用 > conditional 有条件 > paid 付费，兜底 free 直接领）、`topics`（**v0.12 起 29 个中文标签、每条最多 5 个，不再局限 AI**：15 个 AI/工程标签——模型/Agent/MCP/RAG/推理部署/多模态/训练微调/工具框架/评测榜单/编程开发/安全/云计算与基础设施/数据/硬件算力/开源；14 个通用领域——时政要闻/国际资讯/政策合规/商业融资/金融财经/消费电子/汽车出行/游戏/影音媒体/设计创意/产品与增长/职场商业/教育学习/生活方式。短英文词（ev/vr/ar/nft/ui/ux/ps5 等）统一加词边界，避免 ever 误命中 ev、regular 误命中 vr。时政/国际用「标题强信号 + 摘要需与标题共同佐证」的三元组规则，防止摘要里的 government/worldwide 泛词误判；模型词 deepseek 在 URL/产品名（r/deepseek、deepseek-ai、DeepSeek Harness）中排除）、`codes`（邀请码/兑换码，支持显式标注、4-4-4 分段、10-40 位长串，排除纯数字与常见英文词）。插件面板有独立的「主题」筛选条，卡片上的标签可点击直接筛选
 - **翻译数据源选择（v0.12 修复）**：`translate --news --auto` 不再只看最新 `news-*.json`，改为 `_news_payload_for_translate()` 自动选条目最全的一份（优先插件固定文件 `plugin-news.json`，回退 news-*.json / sample）。否则插件日常只写 plugin-news.json、不产 news-*.json 时，最新 news 文件会停在很久以前，机翻永远「处理 0 条」而面板上仍有大量英文
 - 插件卡片：form 六色徽章、obtain 获取方式、topics 彩色胶囊、codes 黄色胶囊一键复制；deals.json 的手工情报也补齐同构四字段，并按 link 与采集结果去重（合并函数 `mergeDeals`）
+- **论坛类信源去噪（v0.13）**：论坛的「最新话题」RSS 混着二手交易、资费问询、求职闲聊帖，这类既不是资讯也归不进领域。`feeds.json` 里给源加 `"noise_filter": "forum"` 即启用（默认不启用，避免误伤正常资讯里含「出/收」的标题）；`enrich.noise_reason()` 按四类规则判定——交易帖（出售/转让/已出/「出V0 MAX」式开头）、求助问询帖（请教/老哥们/是不是…转好）、资费问询（实名了吗/转套餐）、闲聊帖（找工作/面试/吐槽）。**福利帖豁免**：命中「免费/领取/抽奖/迎新福利/送激活码」等白给信号时保留，`enrich.drop_noise()` 批量二分。目前 `forum-naixi-net-forum-php`（奶昔论坛）已标记，实测 20 条抓取→过滤 6 条，保留的都是免费 eSIM / 迎新福利 / 会员领取这类有价值的帖
+- **摘要补译（v0.13）**：翻译库按「标题必译、摘要可选」设计，早期实现里只要条目进了库就整体跳过，导致「标题已译、摘要空缺」的条目永远补不上。现在 `build_news_todo` 对这类条目产出 `only_summary` 任务，`auto_translate_news` 只送摘要文本、写入时保留原译文并另记 `summary_source`/`summary_translated_at`
 
 ### 工作台形态：@local/ai-news-panel 插件
 
 同仓兄弟目录 `../ai-news-panel` 是 DSH 工作台插件，把本引擎包成侧边栏常驻面板（**资讯浏览 / 发现 / 信源维护** 三个页签，含一键在线刷新），引擎代码零改动：
 - Host 半 `webServer` 注册 `/ai-news/*` 路由，用 subprocess 调 `python3 radar.py news --quiet --json-out data/plugin-news.json`；信源维护直接 fs 读写本仓 `data/sources/feeds.json`，与命令行共享同一份
 - v0.8 新增路由：`GET /suggestions`（待审队列）、`GET /opml-catalog`（可选目录）、`POST /discover`（`mode=web|opml|catalog|remote` + `target`，内部拼 `radar.py discover` 参数）、`POST /suggestions`（`op=accept|ignore|accept-all` + `ids[]`）
+- v0.13 新增路由：`POST /read`（`{links:[url…], read:true|false}`，标记已读/未读）、`POST /read-all`（`{}`，当前列表全部已读）。已读状态存在引擎目录的 `data/news-read.json`（`{updated_at, read:{link:iso}}`，**JS 侧单一真源**，不写入 SQLite——deals 条目不在 news 表里也能标记，且免去库结构迁移）；`GET /news` 返回的每条带 `read` 布尔。前端用「本地覆盖层 + 服务端初值」做乐观更新：点击卡片立即变半透明并后台 POST，失败不回滚（下次刷新以服务端为准）；工具栏有「只看未读 N」「全部已读」
 - `--quiet` 是 news 子命令专为插件加的开关：不打印摘要/逐源日志、不写时间戳三件套，只出 `--json-out` 的固定 JSON
 - Client 半用全局 `fetch` 同源调路由（持久化 ESM bundle 可用 fetch；动态沙箱插件的 `host.call` 此路不通，详见 references 第 22 条）
 - 引擎位置探测：环境变量 `AI_GIT_RADAR_DIR` → 同仓 `../engine` → 历史布局 `../ai-git-radar` → cwd 兄弟目录兜底；插件 entryId 为 `include:ai-news-panel`
