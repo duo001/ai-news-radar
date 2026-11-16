@@ -30,3 +30,11 @@ NOTES.local.md
 **/source-suggestions.json
 **/news-progress.json
 **/source-health.json
+
+# 运行时数据库与翻译库（本地积累，不入库；sample-* 仍跟踪）
+**/data/news.db
+**/data/news_translations.json
+**/data/news-read.json
+
+# 无头浏览器二进制（74M，见 tools/README 下载方式，不入库）
+**/tools/lightpanda
