@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.10.0
+version: 0.11.0
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -136,6 +136,16 @@ python3 radar.py render                      # 用最新 GitHub run 数据+翻�
 - 队列文件 `data/source-suggestions.json`：`{generated_at, suggestions:[{id,name,url,kind,group,tags,found_via,status,item_count,latest_item_at,…}]}`，`status` 为 `pending|accepted|ignored`，采纳/忽略都留 `decided_at` 便于回溯
 - **健康检查自动停用**（`feeds.record_health`，只在**在线**采集时统计，离线失败不判失效）：连续 3 次失败把 `feeds.json` 里该源 `enabled=false` 并写 `disabled_reason`（含最近错误），成功一次即清零计数；带 `manual_disabled` 的手动停用源受保护，不会被自动逻辑改写
 
+### 结构化采集器与正交分类（v0.11，`scripts/collectors.py` + `scripts/enrich.py`）
+
+RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零 key、公开 JSON API** 的结构化信源，配置在 `data/sources/collectors.json`（与 feeds.json 同构的声明式注册，加源不改代码）：
+
+- **已启用 2 路**（当前网络实测可达）：① `openrouter-free-models`——拉 `openrouter.ai/api/v1/models`，按 `:free` 后缀或 pricing 全 0 识别免费模型，只留近 14 天新增，产出「OpenRouter 新免费模型」福利条目 ② `hackernews-ai`——多关键词打 `hn.algolia.com` 搜索 API，objectID 去重 + 标题 AI 正则二次过滤，摘要带 HN 分数/评论数
+- **预置停用 4 路**（`enabled:false` + `disabled_reason`，网络具备后改 true 并在 `_COLLECTOR_FUNCS` 注册处理函数即可）：bluesky（public.api.bsky.app）、v2ex、linux.do（Discourse JSON）、reddit；停用原因均为本环境连接超时
+- 采集器与 feeds 输出**完全同构**的 entry（title/link/summary/published/source_id/source_name/group/kind），同一套缓存（`data/cache/collectors/`，TTL 3h，原子写）、同一套单源容错与离线回退、同一张 SQLite 表，按 link 去重合并
+- **enrich.py 规则版正交分类**（零 AI 调用、渲染层可对历史数据重算）：每条资讯补四个字段——`form`（freebie 福利/deal 优惠/paper 论文/release 发布/tutorial 教程/opensource 开源/news 资讯，按精确度排序的正则规则）、`obtain`（仅福利/优惠有值：lottery 抽奖 > promo 推广 > trial 试用 > conditional 有条件 > paid 付费，兜底 free 直接领）、`topics`（模型/Agent/MCP/RAG/推理部署等 14 个中文标签，最多 4 个）、`codes`（邀请码/兑换码，支持显式标注、4-4-4 分段、10-40 位长串，排除纯数字与常见英文词）
+- 插件卡片：form 六色徽章、obtain 获取方式、topics 彩色胶囊、codes 黄色胶囊一键复制；deals.json 的手工情报也补齐同构四字段，并按 link 与采集结果去重（合并函数 `mergeDeals`）
+
 ### 工作台形态：@local/ai-news-panel 插件
 
 同仓兄弟目录 `../ai-news-panel` 是 DSH 工作台插件，把本引擎包成侧边栏常驻面板（**资讯浏览 / 发现 / 信源维护** 三个页签，含一键在线刷新），引擎代码零改动：
@@ -178,7 +188,7 @@ python3 radar.py render                      # 用最新 GitHub run 数据+翻�
 
 - **GitHub 项目扫描（run）已封存为 legacy**：匿名通路受 Search 10 次/分钟、core 60 次/小时限流，全量较慢；代码与文档完整保留，需要项目分类/评分时仍可运行。日常情报用 `news`
 - 资讯只接零密钥 RSS/Atom；需要 key 的信源类型（X 搜索、公众号、网页选择器等）不做；个别源超时标进失败列表而非中断
-- 资讯/仓库翻译都靠 Agent/人工填，脚本不内置机翻、不引入翻译 API 密钥；新文章/新仓库首次出现时英文标题/简介先进待译清单，已译内容跨天复用
+- 资讯/仓库翻译支持两种方式：Agent/人工精译（进待译清单，已译内容跨天复用、永不被覆盖）与 v0.10 免费机翻（腾讯 transmart，零 key，见上）；新文章英文标题首次出现时可一键自动中文化
 - 免费/优惠类只做 README 静态分析，不实测 API 可用性/额度真实性；优惠有时效，报告已显式提示
 - HTML 报告无 JS、纯内联 CSS，交互只有锚点导航和 `<details>` 折叠；自动适配系统深浅色
 - 无跨天查重、无定时任务（后续版本按需补）

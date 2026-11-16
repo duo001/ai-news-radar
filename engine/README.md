@@ -61,6 +61,11 @@ ai-git-radar/
 ├── scripts/
 │   ├── radar.py             # CLI 入口：news(主力)/translate/doctor；run/render(legacy)
 │   ├── feeds.py             # ★ RSS/Atom 采集：并发、gzip 解压、样式清洗、容错+缓存回退
+│   ├── collectors.py        # ★ 结构化采集器：OpenRouter 免费模型 / HN AI（零 key JSON API）
+│   ├── enrich.py            # ★ 正交分类：form 形态 / obtain 获取方式 / topics 标签 / codes 兑换码
+│   ├── db.py                # SQLite 持久化（30 天保留、UPSERT by link、temp_store=MEMORY）
+│   ├── discover.py          # 信源自动发现：网页声明/常见路径/OPML 目录/远程清单 → 待审队列
+│   ├── mt.py                # 免费机翻（腾讯 transmart 主通道，零 key，双预算切片）
 │   ├── i18n.py              # 两套翻译库：资讯(按 link) + 仓库(按 owner/repo)，已译不覆盖
 │   ├── gh_client.py         # [legacy] GitHub 抓取：API/网页/raw 三通路 + 缓存
 │   ├── registry.py          # [legacy] 类目加载与查询生成、强弱词/双通道校验
@@ -69,14 +74,16 @@ ai-git-radar/
 │   ├── scorer.py            # [legacy] 六维情报评分
 │   ├── report.py            # Markdown 渲染（资讯 + legacy 项目，中文优先、主归属常量）
 │   ├── html_report.py       # 自包含单文件 HTML（内联 CSS、零 JS、资讯/项目两套渲染）
-│   └── selftest.py          # 离线回归（13 组）
-├── references/              # 设计文档（数据源坑 21 条、评分方法论）
+│   └── selftest.py          # 离线回归（17 组）
+├── references/              # 设计文档（数据源坑 30 条、评分方法论）
 ├── tools/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图
 └── data/
-    ├── sources/feeds.json   # ★ RSS/Atom 信源表（131 源/13 组，加源只改这里）
-    ├── cache/feeds/         # feed XML 缓存（3h TTL，离线回退）
+    ├── sources/feeds.json       # ★ RSS/Atom 信源表（131 源/13 组，加源只改这里）
+    ├── sources/collectors.json  # ★ 结构化采集器配置（2 启用 / 4 预置停用）
+    ├── cache/feeds/             # feed XML 缓存（3h TTL，离线回退）
+    ├── cache/collectors/        # 采集器 JSON 缓存（3h TTL）
     ├── sample-news.*        # 资讯示例批次（42 条，100% 中文翻译）
     ├── news_translations.json  # 资讯翻译库（按文章 link）
     └── sample-report.* / sample-run.json / translations.json  # legacy GitHub 示例

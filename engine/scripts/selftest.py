@@ -137,6 +137,132 @@ def test_mt():
             os.remove(tmp)
 
 
+# ---- [17] 规则增强（enrich）与结构化采集器（collectors）----
+def test_enrich():
+    import enrich
+
+    # 形态判定
+    check(enrich.form_of("OpenRouter 新免费模型：X (free)") == "freebie",
+          "(free)/:free 后缀识别为福利")
+    check(enrich.form_of("某平台黑五 5 折优惠") == "deal", "折扣识别为优惠")
+    check(enrich.form_of("一篇 arXiv 论文：新的 RAG 方法") == "paper", "论文识别")
+    check(enrich.form_of("某框架发布 v2.3.0") == "release", "版本发布识别")
+    check(enrich.form_of("普通行业动态一条") == "news", "无信号默认资讯")
+
+    # obtain 仅对福利/优惠有意义，且抽奖优先
+    check(enrich.obtain_of("评论区抽 10 份会员，关注后开奖", form="freebie") == "lottery",
+          "抽奖形态判 lottery")
+    check(enrich.obtain_of("注册送 5 美元额度", form="freebie") == "promo", "注册送判推广")
+    check(enrich.obtain_of("某框架发布 v2.3.0", form="release") is None,
+          "非福利形态 obtain 为 None")
+    check(enrich.obtain_of("OpenRouter 免费模型 (free)", form="freebie") == "free",
+          "无附加条件判直接领 free")
+
+    # 领域标签
+    tp = enrich.topics_of("Claude 与 GPT 模型的 MCP server 安全漏洞分析")
+    check({"模型", "MCP", "安全"} <= set(tp), f"多领域标签命中: {tp}")
+    check(len(enrich.topics_of(" ".join(["agent"] * 20))) <= 4, "领域标签最多 4 个")
+
+    # 兑换码：显式标注、分段码、长码；排除纯数字/常见词/无字母
+    codes = enrich.codes_of("邀请码: ABCD-EFGH-IJKL 限时", "promo code ZXCV9999")
+    check("ABCD-EFGH-IJKL" in codes and "ZXCV9999" in codes, f"兑换码抽取: {codes}")
+    check(enrich.codes_of("价格 12345 元，数量 67890") == [], "纯数字不当兑换码")
+    check(enrich.codes_of("见 GITHUB 与 README 文档") == [], "常见英文词不当兑换码")
+
+    # 原地增强 + 汇总
+    e = enrich.enrich_entry({"title": "免费额度领取", "summary": ""})
+    check(e["form"] == "freebie" and "codes" in e and "topics" in e,
+          "enrich_entry 原地补全四字段")
+    stat = enrich.summarize([
+        {"form": "news", "obtain": None, "codes": []},
+        {"form": "freebie", "obtain": "free", "codes": ["X"]},
+    ])
+    check(stat["with_codes"] == 1 and stat["forms"]["freebie"] == 1, "summarize 分布统计")
+
+
+def test_collectors():
+    import collectors
+    from datetime import datetime
+
+    # 配置加载：默认只返回启用项
+    confs = collectors.load_collectors()
+    ids = {c["id"] for c in confs}
+    check("openrouter-free-models" in ids and "hackernews-ai" in ids,
+          f"两个启用采集器存在: {ids}")
+    check("v2ex-free" not in ids and "bluesky-ai" not in ids,
+          "默认禁用的采集器不返回")
+    # only 过滤
+    assert collectors.load_collectors(only="hackernews-ai")[0]["type"] == "hackernews"
+
+    # 缓存读写与离线回退
+    cid = "selftest-probe"
+    collectors._write_cache(cid, {"fetched_at": 0, "entries": [
+        {"title": "缓存条目", "link": "https://x/1", "summary": "",
+         "published": "2026-11-01T00:00:00+00:00", "source_id": cid,
+         "source_name": "probe", "group": "g", "kind": "hackernews"}]})
+    got = collectors._from_cache(cid)
+    check(len(got) == 1 and isinstance(got[0]["published"], datetime),
+          "缓存读回并把 ISO 还原成 datetime")
+    # fetch_one 离线走缓存
+    items = collectors.fetch_one(
+        {"id": cid, "type": "hackernews", "name": "probe"}, offline=True)
+    check(items and items[0]["link"] == "https://x/1", "离线 fetch_one 回退缓存")
+    # 未知类型报错
+    try:
+        collectors.fetch_one({"id": "z", "type": "nope"}, offline=False)
+        raise AssertionError("未知采集器类型应报错")
+    except collectors.CollectorError:
+        print("  ✓ 未知采集器类型抛 CollectorError")
+    # 清理测试缓存
+    collectors._cache_path(cid).unlink(missing_ok=True)
+
+    # OpenRouter 解析逻辑（用桩数据，不发网络）
+    fake = {"data": [
+        {"id": "vendor/new:free", "name": "New Free", "created": 9999999999,
+         "pricing": {"prompt": "0", "completion": "0"}, "context_length": 32768,
+         "description": "a free model"},
+        {"id": "vendor/paid", "name": "Paid", "created": 9999999999,
+         "pricing": {"prompt": "0.001", "completion": "0.002"}},
+        {"id": "vendor/oldfree:free", "name": "Old", "created": 1,
+         "pricing": {"prompt": "0", "completion": "0"}},
+    ]}
+    orig_http = collectors._http_json
+    collectors._http_json = lambda url: fake
+    try:
+        out = collectors.collect_openrouter(
+            {"id": "or-test", "type": "openrouter", "name": "OR",
+             "group": "g", "max_age_days": 14, "limit": 20})
+    finally:
+        collectors._http_json = orig_http
+    links = [e["link"] for e in out]
+    check(any("vendor/new:free" in l for l in links), "免费模型入选")
+    check(not any("vendor/paid" in l for l in links), "付费模型被过滤")
+    check(not any("vendor/oldfree" in l for l in links), "超龄免费模型被过滤")
+    check(all(e["kind"] == "openrouter" for e in out), "kind 标记为 openrouter")
+    collectors._cache_path("or-test").unlink(missing_ok=True)
+
+    # HN 解析：标题不含 AI 信号的丢弃
+    fake_hn = {"hits": [
+        {"objectID": "1", "title": "Show HN: My new LLM agent framework",
+         "url": "https://p/1", "created_at_i": 1700000000, "points": 50,
+         "num_comments": 10, "story_text": ""},
+        {"objectID": "2", "title": "How I cook pasta perfectly",
+         "url": "https://p/2", "created_at_i": 1700000001, "points": 5,
+         "num_comments": 1, "story_text": ""},
+    ]}
+    collectors._http_json = lambda url: fake_hn
+    try:
+        hn = collectors.collect_hackernews(
+            {"id": "hn-test", "type": "hackernews", "name": "HN",
+             "group": "g", "limit": 30, "hits_per_query": 20, "queries": ["AI"]})
+    finally:
+        collectors._http_json = orig_http
+    check(len(hn) == 1 and "LLM" in hn[0]["title"], "HN 只保留 AI 相关故事")
+    check("50 分" in hn[0]["summary"] and hn[0]["kind"] == "hackernews",
+          "HN 摘要含分数且 kind 正确")
+    collectors._cache_path("hn-test").unlink(missing_ok=True)
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -615,6 +741,10 @@ def main():
 
     print("[16] 免费机翻通道")
     test_mt()
+
+    print("[17] 规则增强与结构化采集器")
+    test_enrich()
+    test_collectors()
     print("\n全部自测通过 ✅")
 
 

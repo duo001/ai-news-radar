@@ -41,6 +41,48 @@ window.__ModuleLoader__.load({
     }
     const TIME_RANGE_LABEL = { all: '全部', today: '今日', '3d': '近 3 天', '7d': '近 7 天' };
 
+    // 规则增强（enrich.py）的展示映射
+    const FORM_LABEL = { freebie: '福利', deal: '优惠', release: '发布', paper: '论文',
+      tutorial: '教程', opensource: '开源', news: '资讯' };
+    const OBTAIN_LABEL = { free: '直接领', conditional: '需互动', lottery: '抽奖',
+      trial: '试用', promo: '推广', paid: '付费' };
+
+    function copyCode(ev, code) {
+      ev.preventDefault(); ev.stopPropagation();
+      const done = () => {
+        const el = ev.currentTarget;
+        const old = el.textContent;
+        el.textContent = '已复制 ✓'; el.classList.add('copied');
+        setTimeout(() => { el.textContent = old; el.classList.remove('copied'); }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(done).catch(() => {});
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    }
+
+    // 卡片底部的领域标签 + 兑换码胶囊（两种视图共用）
+    function enrichChips(it, gc) {
+      const out = [];
+      const topics = Array.isArray(it.topics) ? it.topics
+        : (Array.isArray(it._tags) ? it._tags : []);
+      if (topics.length) {
+        out.push(h('div', { className: 'ain-topics', key: 'tp' },
+          topics.map(t => h('span', { className: 'ain-topic', key: t,
+            style: { '--group-color': gc } }, t))));
+      }
+      if (Array.isArray(it.codes) && it.codes.length) {
+        out.push(h('div', { className: 'ain-codes', key: 'cd' },
+          it.codes.map(c => h('span', { className: 'ain-code', key: c,
+            title: '点击复制', onClick: (ev) => copyCode(ev, c) }, c))));
+      }
+      return out;
+    }
+
     function todayCount(news) {
       const today = new Date(); today.setHours(0,0,0,0);
       return news.filter(it => it.published && new Date(it.published) >= today).length;
@@ -130,6 +172,26 @@ window.__ModuleLoader__.load({
 .ain-deal-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
 .ain-deal-tags span { padding:2px 6px; border-radius:4px; font-size:10px;
   background:var(--dsw-alias-bg-layer-2); color:var(--dsw-alias-label-secondary); }
+
+/* 形态徽章 / 领域标签 / 兑换码胶囊（规则增强 enrich.py） */
+.ain-form-badge { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700;
+  margin-left:8px; border:1px solid transparent; white-space:nowrap; }
+.ain-form-badge.freebie { background:#fff7e6; color:#d46b08; border-color:#ffd591; }
+.ain-form-badge.deal { background:#f6ffed; color:#389e0d; border-color:#b7eb8f; }
+.ain-form-badge.release { background:#e6f4ff; color:#0958d9; border-color:#91caff; }
+.ain-form-badge.paper { background:#f9f0ff; color:#722ed1; border-color:#d3adf7; }
+.ain-form-badge.tutorial { background:#e6fffb; color:#08979c; border-color:#87e8de; }
+.ain-form-badge.opensource { background:#f0f5ff; color:#2f54eb; border-color:#adc6ff; }
+.ain-obtain { font-size:10px; color:var(--dsw-alias-label-secondary); margin-left:6px; }
+.ain-topics { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.ain-topic { padding:1px 7px; border-radius:10px; font-size:10px;
+  background:color-mix(in srgb, var(--group-color, var(--dsw-alias-brand-primary)) 10%, transparent);
+  color:var(--dsw-alias-label-secondary); }
+.ain-codes { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.ain-code { padding:2px 8px; border-radius:5px; font-size:11px; font-weight:700; font-family:monospace;
+  background:#fffbe6; color:#ad6800; border:1px solid #ffe58f; cursor:pointer; user-select:none; }
+.ain-code:hover { background:#fff1b8; }
+.ain-code.copied { background:#f6ffed; color:#389e0d; border-color:#b7eb8f; }
 
 .ain-group h3 { font-size:13px; margin:0 0 8px; color:var(--dsw-alias-label-secondary); font-weight:600; }
 .ain-group h3.time { color:var(--dsw-alias-brand-primary); }
@@ -398,6 +460,11 @@ window.__ModuleLoader__.load({
               const summary = tr.zh_summary || it.summary || '';
               const gc = groupColor(it.group);
               const isDeal = it._kind === 'deal';
+              const formBadge = (!isDeal && it.form && it.form !== 'news')
+                ? h('span', { className: `ain-form-badge ${it.form}` }, FORM_LABEL[it.form] || it.form)
+                : null;
+              const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
+                ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
               return h('a', {
                 className: 'ain-item' + (isDeal ? ' deal' : ''), key: it.link,
                 href: it.link, target: '_blank', rel: 'noreferrer',
@@ -408,12 +475,14 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'ain-src' }, it.source_name),
                   h('span', { className: 'ain-gtag' }, it.group),
                   isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
+                  formBadge, obtainTxt,
                   h('span', { className: 'ain-time' }, fmtDate(it.published))),
                 h('div', { className: 't' }, title),
                 showOrig && h('div', { className: 'orig' }, it.title),
                 summary && h('div', { className: 's' }, summary),
                 isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
-                  it._tags.map(t => h('span', { key: t }, t))));
+                  it._tags.map(t => h('span', { key: t }, t))),
+                ...(isDeal ? [] : enrichChips(it, gc)));
             }))
           : orderedGroups.map(([gname, items]) =>
             h('div', { className: 'ain-group', key: gname },
@@ -425,6 +494,11 @@ window.__ModuleLoader__.load({
                 const summary = tr.zh_summary || it.summary || '';
                 const gc = groupColor(it.group);
                 const isDeal = it._kind === 'deal';
+                const formBadge = (!isDeal && it.form && it.form !== 'news')
+                  ? h('span', { className: `ain-form-badge ${it.form}` }, FORM_LABEL[it.form] || it.form)
+                  : null;
+                const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
+                  ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
                 return h('a', {
                   className: 'ain-item' + (isDeal ? ' deal' : ''), key: it.link,
                   href: it.link, target: '_blank', rel: 'noreferrer',
@@ -435,12 +509,14 @@ window.__ModuleLoader__.load({
                     h('span', { className: 'ain-src' }, it.source_name),
                     h('span', { className: 'ain-gtag' }, it.group),
                     isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
+                    formBadge, obtainTxt,
                     h('span', { className: 'ain-time' }, fmtDate(it.published))),
                   h('div', { className: 't' }, title),
                   showOrig && h('div', { className: 'orig' }, it.title),
                   summary && h('div', { className: 's' }, summary),
                   isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
-                    it._tags.map(t => h('span', { key: t }, t))));
+                    it._tags.map(t => h('span', { key: t }, t))),
+                  ...(isDeal ? [] : enrichChips(it, gc)));
               }))));
     }
 

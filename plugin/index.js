@@ -81,6 +81,7 @@ async function readDeals() {
 
 function dealsAsNewsItems(deals) {
   // 转成 news item 格式，混入 RSS 列表；_kind='deal' 供前端样式区分
+  // 补 enrich 四字段（form/obtain/topics/codes）与 kind，保证与采集条目同构
   return deals.map(d => ({
     title: d.title,
     link: d.link,
@@ -90,8 +91,26 @@ function dealsAsNewsItems(deals) {
     source_name: d.source_name || d.link,
     group: d.group || '模型优惠与福利',
     _kind: 'deal',
+    kind: 'deal',
+    form: 'deal',
+    obtain: 'promo',
+    topics: d.tags || [],
+    codes: [],
     _tags: d.tags || [],
   }));
+}
+
+function mergeDeals(deals, news) {
+  // deals 置顶；按 link 去重，避免 deals.json 与采集到的同链接条目重复出现
+  const seen = new Set();
+  const out = [];
+  for (const it of [...deals, ...(news || [])]) {
+    const key = it.link || `#${it.source_id}:${it.title}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
 }
 
 function runRadarNews({ offline = true, perSource = 8, only = '' } = {}) {
@@ -228,7 +247,7 @@ export async function apply(ctx) {
           const deals = await readDeals();
           sendJson(res, 200, { ok: true,
             translated: Object.keys(payload.news_translations || {}).length,
-            news: [...dealsAsNewsItems(deals), ...(payload.news || [])],
+            news: mergeDeals(dealsAsNewsItems(deals), payload.news || []),
             news_translations: payload.news_translations || {} });
         } catch (e) {
           sendJson(res, 500, { ok: false, error: String(e.message || e) });
@@ -261,11 +280,11 @@ export async function apply(ctx) {
         const now = Date.now();
         if (!refresh && newsCache && (now - newsCacheAt) < NEWS_CACHE_TTL_MS) {
           sendJson(res, 200, { ok: true, ...newsCache,
-            news: [...dealItems, ...(newsCache.news || [])] });
+            news: mergeDeals(dealItems, newsCache.news || []) });
           return;
         }
         const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
-        payload.news = [...dealItems, ...(payload.news || [])];
+        payload.news = mergeDeals(dealItems, payload.news || []);
         newsCache = payload;
         newsCacheAt = now;
         sendJson(res, 200, { ok: true, ...payload });

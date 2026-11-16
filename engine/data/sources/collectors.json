@@ -1,0 +1,60 @@
+{
+  "$comment": "非 RSS 的结构化 API 采集器（零 key）。enabled:false 的项需对应网络条件具备后再开启。新增采集器：在 scripts/collectors.py 注册 type 处理函数，并在此加配置。",
+  "collectors": [
+    {
+      "id": "openrouter-free-models",
+      "type": "openrouter",
+      "name": "OpenRouter 免费模型",
+      "group": "模型优惠与福利",
+      "enabled": true,
+      "max_age_days": 14,
+      "limit": 20
+    },
+    {
+      "id": "hackernews-ai",
+      "type": "hackernews",
+      "name": "Hacker News · AI",
+      "group": "开发者社区",
+      "enabled": true,
+      "limit": 30,
+      "hits_per_query": 20,
+      "queries": ["AI", "LLM", "GPT", "agent", "Claude", "OpenAI"]
+    },
+    {
+      "id": "bluesky-ai",
+      "type": "bluesky",
+      "name": "Bluesky 公开动态",
+      "group": "个人与社区",
+      "enabled": false,
+      "disabled_reason": "当前网络无法连通 public.api.bsky.app；具备代理后启用并在 collectors.py 实现 bluesky 处理函数",
+      "actors": [],
+      "limit_per_actor": 12
+    },
+    {
+      "id": "v2ex-free",
+      "type": "v2ex",
+      "name": "V2EX · 免费赠送",
+      "group": "开发者社区",
+      "enabled": false,
+      "disabled_reason": "www.v2ex.com 当前网络超时（或需 FlareSolverr）；网络恢复后启用并实现 v2ex 处理函数",
+      "node": "free"
+    },
+    {
+      "id": "linuxdo-latest",
+      "type": "linuxdo",
+      "name": "LINUX DO · 最新",
+      "group": "开发者社区",
+      "enabled": false,
+      "disabled_reason": "linux.do 当前网络超时（Discourse JSON 接口）；网络恢复后启用并实现 linuxdo 处理函数"
+    },
+    {
+      "id": "reddit-ml",
+      "type": "reddit",
+      "name": "Reddit r/MachineLearning",
+      "group": "开发者社区",
+      "enabled": false,
+      "disabled_reason": "www.reddit.com 当前网络超时；网络恢复后启用并实现 reddit 处理函数",
+      "subreddit": "MachineLearning"
+    }
+  ]
+}

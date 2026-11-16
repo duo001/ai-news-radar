@@ -36,6 +36,8 @@ import report
 import html_report
 import i18n
 import feeds
+import collectors
+import enrich
 import discover
 import db
 
@@ -266,6 +268,13 @@ def cmd_run(args):
         _log("采集 AI 资讯信源（RSS/Atom）……")
         news_entries, news_failures, news_dup = feeds.fetch_all(
             offline=args.offline, per_source_limit=args.news_per, log=_log)
+        col_entries, col_failures = collectors.fetch_all(
+            offline=args.offline, log=_log)
+        if col_entries:
+            have = {e.get("link") for e in news_entries}
+            news_entries.extend(e for e in col_entries if e.get("link") not in have)
+        news_failures.extend(col_failures)
+        enrich.attach(news_entries)
         _log(f"资讯合计 {len(news_entries)} 条，失败信源 {len(news_failures)} 个，去重 {news_dup} 条")
 
     payload = {
@@ -475,6 +484,20 @@ def cmd_news(args):
                 workers=getattr(args, "workers", 8))
         finally:
             feeds.clear_progress()
+
+    # ---- 非 RSS 结构化 API 采集器（OpenRouter 免费模型 / Hacker News 等）----
+    # 离线时只读本地缓存，无缓存则该源记失败，不影响 RSS 主链路
+    quiet_log = (lambda *_a, **_k: None) if getattr(args, "quiet", False) else _log
+    col_entries, col_failures = collectors.fetch_all(
+        only=getattr(args, "only", None), offline=offline, log=quiet_log)
+    if col_entries:
+        existing_links = {e.get("link") for e in entries}
+        added = [e for e in col_entries if e.get("link") not in existing_links]
+        entries.extend(added)
+        if not offline and not getattr(args, "quiet", False):
+            _log(f"结构化采集器新增 {len(added)} 条（{len(col_entries)} 条去重后）")
+    failures.extend(col_failures)
+
     if not entries:
         if getattr(args, "quiet", False):
             return 1
@@ -483,17 +506,29 @@ def cmd_news(args):
             print(f"  ✗ {f['name']}: {f['error']}")
         return 1
 
+    # ---- 规则增强：form/obtain/topics/codes（纯函数，渲染层也可重算）----
+    enrich.attach(entries)
+    for e in entries:
+        # 领域标签写进 tags 列随 DB 持久化；codes/obtain 渲染时按 title+summary 重算
+        if e.get("topics") and not e.get("tags"):
+            e["tags"] = e["topics"]
+
     news_trans = i18n.load_news_store()
 
-    # ---- SQLite 持久化：仅当 entries 含 datetime 对象（本次新采集）才写库 ----
-    # 离线直读 DB 的 entries 已是序列化格式，跳过写入避免重复 ISO 化
-    need_write = not entries or not isinstance(entries[0].get("published"), str)
+    # ---- SQLite 持久化 ----
+    # RSS 直读 DB（离线有数据）时跳过，避免重复 ISO 化；结构化采集器的新条目
+    # 即使在离线模式（读本地缓存）也要入库，单独序列化写入。
+    need_write = bool(entries) and not isinstance(entries[0].get("published"), str)
     if need_write:
         db.upsert_news(_serialize_news(entries))
+    elif col_entries:
+        db.upsert_news(_serialize_news(col_entries))
     pruned = db.prune_old()
     # 从 DB 读回最近 RETENTION_DAYS 天，作为插件消费的 JSON 快照
     # （这样历史资讯不丢、跨采集合并，且 JSON 恒定在 30 天窗口内，体积可控）
     db_entries = db.query_news(days=db.RETENTION_DAYS)
+    # 历史条目（含此前未增强的 RSS 数据）在渲染前统一补算 form/obtain/codes
+    enrich.attach(db_entries)
     if pruned and not getattr(args, "quiet", False):
         _log(f"保留策略：清理 {pruned} 条 {db.RETENTION_DAYS} 天前的过期资讯")
 

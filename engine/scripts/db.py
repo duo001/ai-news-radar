@@ -23,6 +23,10 @@ def _connect(path=None):
     p.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(p))
     conn.row_factory = sqlite3.Row
+    # 排序/聚合的临时表放内存：部分沙箱禁止 SQLite 在 /tmp 建外部排序文件，
+    # 会在带表达式的 ORDER BY 上报 "unable to open database file"。
+    # 数据量仅万级（30 天保留窗口），内存 temp store 完全够用。
+    conn.execute("PRAGMA temp_store=MEMORY")
     return conn
 
 
