@@ -413,6 +413,102 @@ def test_watch():
         tmp.unlink(missing_ok=True)
 
 
+def test_watch_crud():
+    import tempfile, pathlib as _pl
+    import watch
+    tmp = _pl.Path(tempfile.mktemp(suffix=".json"))
+    orig = watch.WATCH_CONF
+    watch.WATCH_CONF = tmp
+    try:
+        check(watch.load_watch() == [], "CRUD：初始无配置返空")
+        _, added = watch.add_keyword("rag")
+        check(added and watch.load_watch() == ["rag"], "CRUD：新增启用词")
+        _, added2 = watch.add_keyword("RAG")  # 忽略大小写重复
+        check(added2 is False and watch.load_watch() == ["rag"], "CRUD：同名重复不新增")
+        watch.toggle_keyword("rag", False)
+        check(watch.load_watch() == [], "CRUD：停用后不进启用列表")
+        _, added3 = watch.add_keyword("rag")  # 同名再添加=重新启用
+        check(added3 is False and watch.load_watch() == ["rag"], "CRUD：同名添加重新启用停用词")
+        watch.add_keyword("向量库")
+        check(watch.load_watch() == ["rag", "向量库"], "CRUD：多词保序")
+        _, removed = watch.remove_keyword("RAG")
+        check(removed and "rag" not in watch.load_watch(), "CRUD：忽略大小写删除")
+        try:
+            watch.add_keyword("   ")
+            check(False, "CRUD：空词应报错")
+        except ValueError:
+            pass
+    finally:
+        watch.WATCH_CONF = orig
+        tmp.unlink(missing_ok=True)
+
+
+def test_dedup_and_fallback():
+    import enrich
+    base = "2026-11-10T08:00:00+00:00"
+    entries = [
+        # 同事件英文转载：科技媒体 vs 厂商官方，官方应胜出
+        {"title": "OpenAI launches new agent toolkit for developers",
+         "link": "u1", "group": "科技媒体", "source_name": "TechCrunch", "published": base},
+        {"title": "OpenAI launches a new agent toolkit for developers",
+         "link": "u2", "group": "厂商官方", "source_name": "OpenAI Blog", "published": base},
+        # 不相关短标题不参与聚类
+        {"title": "Hi", "link": "u3", "group": "科技媒体", "source_name": "X", "published": base},
+        # 跨语言不合并（日文与中文即使概念相同）
+        {"title": "新しいAIエージェントツールを発表",
+         "link": "u4", "group": "科技媒体", "source_name": "日文站", "published": base},
+        {"title": "全新 AI 智能体工具发布",
+         "link": "u5", "group": "科技媒体", "source_name": "中文站", "published": base},
+    ]
+    kept, dropped = enrich.cluster_duplicates(entries, threshold=0.62)
+    check(dropped == 1, f"近似去重：折叠 1 条转载（实际 {dropped}）")
+    check(len(kept) == 4, "近似去重：保留 4 条主条目")
+    primary = next(x for x in kept if x.get("dup_count"))
+    check(primary["link"] == "u2" and primary["dup_sources"] == ["TechCrunch"],
+          "近似去重：来源优先级让厂商官方胜出并记录折叠源")
+    check(entries[0].get("dup_of") == "u2", "近似去重：被折叠条目标 dup_of")
+
+    # 分组兜底标签：规则全空时强领域组兜底，杂烩组留空
+    e_off = {"title": "某厂季度通讯（无任何规则词）", "summary": "", "group": "厂商官方"}
+    enrich.enrich_entry(e_off)
+    check(e_off["topics"] == ["AI 综合"], "兜底：厂商官方无规则命中时挂 AI 综合")
+    e_mix = {"title": "一条杂烩社区帖（无任何规则词）", "summary": "", "group": "开发者社区"}
+    enrich.enrich_entry(e_mix)
+    check(e_mix["topics"] == [], "兜底：杂烩组不硬贴标签")
+    # 规则命中优先于兜底
+    e_hit = {"title": "New GPU benchmark released", "summary": "", "group": "厂商官方"}
+    enrich.enrich_entry(e_hit)
+    check("硬件算力" in e_hit["topics"] and "AI 综合" not in e_hit["topics"],
+          "兜底：规则命中时不追加兜底标签")
+
+
+def test_sourcecheck():
+    import sourcecheck
+    feeds_doc = [
+        {"id": "s1", "name": "活跃源", "group": "科技媒体", "enabled": True},
+        {"id": "s2", "name": "静默源", "group": "技术博客", "enabled": True},
+        {"id": "s3", "name": "停用源", "group": "科技媒体", "enabled": False},
+    ]
+    entries = [
+        {"source_id": "s1", "published": "2026-11-15T00:00:00+00:00"},
+        {"source_id": "s2", "published": "2026-10-01T00:00:00+00:00"},  # 30 天内有、7 天窗口外
+    ]
+    result = sourcecheck.run_check(feeds_doc, entries, days=7)
+    silent_ids = [s["id"] for s in result["silent"]]
+    check(silent_ids == ["s2"], f"体检：只报启用且窗口内 0 条的源（实际 {silent_ids}）")
+    s2 = next(s for s in result["silent"] if s["id"] == "s2")
+    check(s2["last_published"].startswith("2026-10-01"), "体检：最近条目时间取全量窗口")
+
+    # 故障与孤儿
+    health = {
+        "s1": {"consecutive_fails": 3, "last_error": "timeout"},
+        "gone": {"consecutive_fails": 5},
+    }
+    failing = sourcecheck.failing_sources(feeds_doc, health)
+    check([f["id"] for f in failing] == ["s1"], "体检：故障源达阈值且仍启用才上报")
+    check(sourcecheck.orphan_health(feeds_doc, health) == ["gone"], "体检：识别 health 孤儿")
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -915,6 +1011,11 @@ def main():
 
     print("[18] 关键词关注（watch）")
     test_watch()
+    test_watch_crud()
+
+    print("[19] 近似去重、分组兜底与信源体检")
+    test_dedup_and_fallback()
+    test_sourcecheck()
     print("\n全部自测通过 ✅")
 
 

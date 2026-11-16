@@ -41,6 +41,7 @@ let newsCache = null;
 let newsCacheAt = 0;
 const NEWS_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEALS_JSON = path.join(ENGINE_DIR, 'data', 'deals.json');
+const WATCH_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'watch.json');
 let dealsCache = null;
 let dealsCacheAt = 0;
 const DEALS_CACHE_TTL_MS = 10 * 60 * 1000;   // 情报类低频变化，10 分钟
@@ -66,6 +67,22 @@ async function readFeeds() {
 
 function writeFeeds(doc) {
   return writeFile(FEEDS_JSON, `${JSON.stringify(doc, null, 2)}\n`, 'utf-8');
+}
+
+// ---- 关键词关注配置（watch.json），与 scripts/watch.py 同一份文件 ----
+async function readWatch() {
+  try {
+    const doc = JSON.parse(await readFile(WATCH_JSON, 'utf-8'));
+    if (!Array.isArray(doc.keywords)) doc.keywords = [];
+    return doc;
+  } catch {
+    return { keywords: [] };
+  }
+}
+
+async function writeWatch(doc) {
+  await writeFile(WATCH_JSON, `${JSON.stringify(doc, null, 2)}\n`, 'utf-8');
+  newsCache = null; // 强制下次 /news 重新离线渲染，让新关注词立即生效
 }
 
 // 调 Python 引擎采集；offline=true 只读数缓存，秒级返回。
@@ -550,6 +567,59 @@ export async function apply(ctx) {
         }
         const markdown = readFileSync(m[1], 'utf-8');
         sendJson(res, 200, { ok: true, path: m[1], markdown, log: stdout.trim() });
+        return;
+      }
+
+      // ---- 关键词关注管理：GET 读配置；POST 增/删/启停，改完立即失效资讯缓存 ----
+      if (req.method === 'GET' && route === '/watch') {
+        const doc = await readWatch();
+        sendJson(res, 200, { ok: true, keywords: doc.keywords || [] });
+        return;
+      }
+
+      if (req.method === 'POST' && route === '/watch') {
+        const body = await readJsonBody(req);
+        const op = body && body.op;
+        const term = String((body && body.term) || '').trim();
+        if (!['add', 'remove', 'toggle'].includes(op)) {
+          sendJson(res, 400, { ok: false, error: "op 必须是 add/remove/toggle" });
+          return;
+        }
+        if (!term || term.length > 64) {
+          sendJson(res, 400, { ok: false, error: '关键词为空或超过 64 字符' });
+          return;
+        }
+        const doc = await readWatch();
+        let changed = false;
+        const lower = term.toLowerCase();
+        if (op === 'add') {
+          const hit = doc.keywords.find((k) => String(k.term).toLowerCase() === lower);
+          if (hit) {
+            if (!hit.enabled) { hit.enabled = true; changed = true; }
+          } else {
+            doc.keywords.push({ term, enabled: true });
+            changed = true;
+          }
+        } else if (op === 'remove') {
+          const before = doc.keywords.length;
+          doc.keywords = doc.keywords.filter(
+            (k) => String(k.term).toLowerCase() !== lower);
+          changed = doc.keywords.length !== before;
+        } else { // toggle
+          const hit = doc.keywords.find((k) => String(k.term).toLowerCase() === lower);
+          if (!hit) {
+            sendJson(res, 404, { ok: false, error: `关键词不存在: ${term}` });
+            return;
+          }
+          hit.enabled = body.enabled === undefined ? !hit.enabled : !!body.enabled;
+          changed = true;
+        }
+        if (changed) {
+          await writeWatch(doc);
+          // 重跑离线渲染，让新关注词的 watch_hits 立即落到 plugin-news.json
+          await runRadarNews({ offline: true });
+        }
+        sendJson(res, 200, { ok: true, changed, keywords: doc.keywords });
         return;
       }
 

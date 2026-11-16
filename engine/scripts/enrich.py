@@ -18,6 +18,7 @@
 """
 
 import re
+from datetime import datetime, timezone
 
 
 def _w(pat):
@@ -116,11 +117,12 @@ _TOPIC_RULES = (
     ("编程开发", r"编程|开发|前端|后端|全栈|\bjavascript\b|typescript|python|java|golang|"
                 r"rust|node\.?js|react|vue|编程语言|代码|开源项目|api\s+设计|微服务|"
                 r"devops|\bci/cd\b|docker|kubernetes|\bk8s\b|git|数据库|sql|linux|"
-                r"web\s+development|software\s+engineering"),
+                r"web\s+development|software\s+engineering|ffmpeg|nvim|neovim|"
+                + _w(r"nim")),
     ("安全", r"安全|security|漏洞|vulnerab|攻击|attack|注入|prompt\s+injection|供应链|"
              r"supply[\s-]?chain|越狱|jailbreak|隐私|privacy|malware|恶意|"
              r"rubygems?|npm\s+attack|数据泄露|breach|phishing|钓鱼|零日|0day|"
-             r"勒索|ransomware|加密|encryption"),
+             r"勒索|ransomware|加密|encryption|\bxss\b|劫持|hijack|宕机|障害|outage"),
     ("云计算与基础设施", r"云计算|云服务|\baws\b|azure|\bgcp\b|云原生|serverless|"
                        r"边缘计算|cdn|服务器|数据中心|infrastructure|\bvm\b|容器|"
                        r"kubernetes|terraform|observability|可观测"),
@@ -128,7 +130,7 @@ _TOPIC_RULES = (
             r"数据管道|pipeline|数据治理|bi\s+工具|可视化|dashboard|数据科学"),
     ("硬件算力", r"\bgpu\b|h100|h200|b200|gb200|算力|芯片|tpu|npu|数据中心|显存|"
                 r"infrastructure|accelerator|半导体|semiconductor|处理器|cpu|arm|"
-                r"risc[\s-]?v|内存|存储硬件"),
+                r"risc[\s-]?v|内存|存储硬件|英伟达|nvidia|黄仁勋|詹森|jensen\s+huang"),
     # ---------- 行业与垂直领域 ----------
     # 时政/国际用 (标签, 标题强信号, 摘要弱信号) 三元组：摘要里 government/worldwide
     # 之类的泛词太常见，只在摘要命中时要求与标题共同佐证，避免大量误判（见坑文档 33）
@@ -158,13 +160,13 @@ _TOPIC_RULES = (
                 r"数字人民币|支付清算|信贷|证券"),
     ("消费电子", r"手机|智能手机|iphone|安卓|android|笔记本|平板|耳机|智能手表|"
                 r"消费电子|gadget|硬件新品|发布会|苹果|华为|小米|三星|可穿戴|"
-                + _w(r"vr") + r"|" + _w(r"ar\b") + r"|" + _w(r"xr\b")),
+                + _w(r"vr") + r"|" + _w(r"ar\b") + r"|" + _w(r"xr\b") + r"|显示器|monitor|mini\s?led"),
     ("汽车出行", r"电动车|新能源汽车|自动驾驶|autonomous\s+driving|特斯拉|tesla|比亚迪|"
                 r"智能座舱|车载|网约车|充电桩|电动汽车|\bev\b|车企|轿车|suv|车型"),
     ("游戏", r"游戏|gaming|" + _w(r"steam") + r"|epic\s+games|游戏主机|" + _w(r"ps5") +
             r"|xbox|switch|手游|游戏开发|game\s+dev|电竞|独立游戏|3a|玩家|"
             r"warhammer|战锤|原神|黑神话|塞尔达|任天堂|nintendo|"
-            r"dawn\s+of\s+war|游戏ip|主机游戏"),
+            r"dawn\s+of\s+war|游戏ip|主机游戏|益智游戏|puzzle\s+game"),
     ("影音媒体", r"视频|流媒体|streaming|netflix|youtube|音乐|spotify|播客|podcast|"
                 r"电影|影视|短视频|直播|hbo|迪士尼|内容创作|自媒体|剧集|综艺|影院"),
     ("设计创意", r"设计|design|" + _w(r"ui") + r"|" + _w(r"ux") + r"|figma|创意|平面设计|"
@@ -178,10 +180,29 @@ _TOPIC_RULES = (
     ("生活方式", r"健康|健身|医疗|医学|美食|旅行|旅游|家居|亲子|情感|消费|购物|"
                 r"电商|e[\s-]?commerce|亚马逊|amazon|生活"),
     # ---------- 兜底类，放最后 ----------
+    # AI 综合：谈 AI 但不落到具体技术/产品形态的泛讨论（AI 时代/AI 热潮/人工智能应用）
+    ("AI 综合", r"\bai\b|artificial\s+intelligence|人工智能|aigc|生成式(ai|人工智能)|"
+                r"大模型时代|ai\s+(era|boom|hype|story|stories|risk|adoption)|"
+                r"machine\s+learning|\bml\b|机器学习|深度学习"),
     ("开源", r"开源|open[\s-]?source|\bgithub\b|apache|mit\s+licen|self[\s-]?host"),
 )
 
 _TOPIC_MAX = 5
+
+# 信源分组 → 兜底标签：规则全未命中时用，保证强领域信源不会大面积无标签。
+# 只放领域身份明确的组；开发者社区/科技媒体这类杂烩组不兜底（宁可留空也不硬贴）。
+_GROUP_FALLBACK_TOPIC = {
+    "厂商官方": "AI 综合",
+    "学术研究": "AI 综合",
+    "AI 媒体": "AI 综合",
+    "DSH 生态": "工具框架",
+    "DSH生态": "工具框架",
+    "安全": "安全",
+    "硬件与芯片": "硬件算力",
+    "创业与商业": "商业融资",
+    "开源生态": "开源",
+    "模型优惠与福利": "AI 综合",
+}
 
 
 def topics_of(title, summary=""):
@@ -327,6 +348,136 @@ def drop_noise(entries, log=None):
     return kept, dropped
 
 
+# ---------------------------------------------------------------- 跨源近似去重
+
+# 来源优先级：数字越小越优先保留（权威/官方源胜出，其次技术媒体；未列出的源给 50）
+_SOURCE_PRIORITY = {
+    "厂商官方": 10, "学术研究": 20, "DSH生态": 25, "安全": 30,
+    "开源生态": 35, "AI媒体": 40, "科技媒体": 45,
+    "技术博客": 55, "开发者社区": 60, "个人与社区": 70,
+    "播客": 75, "创业与商业": 50, "硬件与芯片": 30,
+}
+_DEDUP_THRESHOLD = 0.62   # 词元 Jaccard 阈值
+_DEDUP_MIN_TOKENS = 4     # 标题太短不比，防止短标题误合并
+_STOP_TOKENS = {"the", "a", "an", "to", "of", "and", "or", "for", "in", "on",
+                "with", "is", "are", "was", "how", "why", "what", "from", "at",
+                "by", "its", "it", "this", "that", "new", "vs", "你", "的",
+                "了", "在", "与", "和", "及", "是"}
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+_WORD_RE = re.compile(r"[a-z0-9]+|[\u4e00-\u9fff]")
+
+
+def _norm_title(title):
+    return re.sub(r"\s+", " ", (title or "").lower()).strip()
+
+
+def _title_tokens(title):
+    """英文按词、中文按单字切词，去停用词；返回 set。"""
+    norm = _norm_title(title)
+    toks = set(t for t in _WORD_RE.findall(norm) if t not in _STOP_TOKENS and len(t) > 1)
+    return toks
+
+
+def _jaccard(a, b):
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def _entry_time(entry):
+    """published 可能是 datetime / ISO 字符串 / 缺失，统一转可比较的 datetime。"""
+    p = entry.get("published")
+    if isinstance(p, datetime):
+        return p if p.tzinfo else p.replace(tzinfo=timezone.utc)
+    if isinstance(p, str) and p:
+        try:
+            dt = datetime.fromisoformat(p.replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def cluster_duplicates(entries, threshold=_DEDUP_THRESHOLD, log=None):
+    """同语言标题 Jaccard 聚类（渲染层，不改 DB）。
+
+    每个聚类保留一个主条目（来源组优先级高 → 时间新 → 标题长），
+    其余条目标 dup_of=<主条目 link>，主条目带 dup_count 与 dup_sources。
+    返回 (kept_entries, dropped_count)；kept 保持输入相对顺序。
+    """
+    prepared = []
+    for e in entries:
+        title = e.get("zh_title") or e.get("title") or ""
+        prepared.append({
+            "entry": e,
+            "tokens": _title_tokens(title),
+            "cjk": bool(_CJK_RE.search(title)),
+            "link": e.get("link") or e.get("source_id", ""),
+        })
+
+    clusters = []  # 每项: {"rep": idx, "members": [idx...]}
+    idx_of = {}
+    for i, item in enumerate(prepared):
+        if len(item["tokens"]) < _DEDUP_MIN_TOKENS:
+            clusters.append({"rep": i, "members": [i]})
+            idx_of[i] = len(clusters) - 1
+            continue
+        best, best_sim = None, 0.0
+        for ci, cl in enumerate(clusters):
+            rep = prepared[cl["rep"]]
+            if rep["cjk"] != item["cjk"]:
+                continue  # 只在同语言间比对，防跨语言误杀
+            sim = _jaccard(item["tokens"], rep["tokens"])
+            if sim >= threshold and sim > best_sim:
+                best, best_sim = ci, sim
+        if best is None:
+            clusters.append({"rep": i, "members": [i]})
+            idx_of[i] = len(clusters) - 1
+        else:
+            clusters[best]["members"].append(i)
+            idx_of[i] = best
+
+    def rank_key(idx):
+        e = prepared[idx]["entry"]
+        grp = e.get("group") or ""
+        prio = _SOURCE_PRIORITY.get(grp, 50)
+        ts = _entry_time(e)
+        ts_key = ts.timestamp() if ts else 0.0
+        title_len = len(e.get("zh_title") or e.get("title") or "")
+        return (prio, -ts_key, -title_len)
+
+    primary_links = set()
+    dropped = 0
+    for cl in clusters:
+        if len(cl["members"]) < 2:
+            primary_links.add(prepared[cl["rep"]]["link"])
+            continue
+        winner = min(cl["members"], key=rank_key)
+        cl["rep"] = winner
+        win_link = prepared[winner]["link"]
+        primary_links.add(win_link)
+        win_entry = prepared[winner]["entry"]
+        dup_sources = []
+        for idx in cl["members"]:
+            if idx == winner:
+                continue
+            e = prepared[idx]["entry"]
+            e["dup_of"] = win_link
+            name = e.get("source_name") or e.get("source_id") or "未知源"
+            if name not in dup_sources:
+                dup_sources.append(name)
+            dropped += 1
+        win_entry["dup_count"] = len(dup_sources)
+        win_entry["dup_sources"] = dup_sources
+        if log:
+            t = (win_entry.get("zh_title") or win_entry.get("title") or "")[:40]
+            log(f"  近似去重：{t}… 合并 {len(dup_sources)} 条（{', '.join(dup_sources[:3])}）")
+
+    kept = [prepared[i]["entry"] for i, item in enumerate(prepared)
+            if item["link"] in primary_links]
+    return kept, dropped
+
+
 # ---------------------------------------------------------------- 对外接口
 
 def enrich_entry(entry):
@@ -336,7 +487,12 @@ def enrich_entry(entry):
     form = form_of(title, summary)
     entry["form"] = form
     entry["obtain"] = obtain_of(title, summary, form)
-    entry["topics"] = topics_of(title, summary)
+    topics = topics_of(title, summary)
+    if not topics:
+        fallback = _GROUP_FALLBACK_TOPIC.get(entry.get("group") or "")
+        if fallback:
+            topics = [fallback]
+    entry["topics"] = topics
     entry["codes"] = codes_of(title, summary)
     return entry
 

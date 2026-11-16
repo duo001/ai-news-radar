@@ -39,6 +39,7 @@ import feeds
 import collectors
 import enrich
 import watch
+import sourcecheck
 import discover
 import db
 
@@ -85,7 +86,8 @@ def _serialize_news(entries):
 
 # --------------------------------------------------------------- doctor
 
-def cmd_doctor(_args):
+def cmd_doctor(args):
+    args = args or argparse.Namespace(sources=False, days=7)
     _log("检查运行环境……")
     print(f"Python      : {sys.version.split()[0]}")
     print(f"token 来源  : {gh_client.token_source()}")
@@ -114,6 +116,39 @@ def cmd_doctor(_args):
               + (f"，⚠️ 重复 id: {dup}" if dup else ""))
     except Exception as e:
         print(f"资讯信源    : 配置异常 {e}")
+    if getattr(args, "sources", False):
+        cmd_source_check(argparse.Namespace(days=getattr(args, "days", 7)))
+    return 0
+
+
+def cmd_source_check(args):
+    """信源体检：静默源（近 N 天 0 条）、连续故障源、health 孤儿记录。纯本地不联网。"""
+    days = args.days
+    feeds_doc = feeds.load_feeds(include_disabled=True)
+    entries = db.query_news(days=max(days, db.RETENTION_DAYS), limit=100000)
+    result = sourcecheck.run_check(feeds_doc, entries, days=days)
+
+    print(f"\n== 信源体检（近 {days} 天窗口，纯本地分析）==")
+    all_sources = feeds_doc if isinstance(feeds_doc, list) else feeds_doc.get("sources", [])
+    enabled = [s for s in all_sources if s.get("enabled", True)]
+    print(f"配置信源 {len(all_sources)} 个（启用 {len(enabled)}），"
+          f"DB 条目 {len(entries)}")
+
+    print(f"\n[静默源] 近 {days} 天 0 条的启用源：{len(result['silent'])} 个")
+    if result["silent"]:
+        for s in result["silent"]:
+            last = s["last_published"][:10] if s["last_published"] else "从未"
+            print(f"  - [{s['group']}] {s['name']}（{s['id']}）最近条目：{last}")
+        print("  说明：个人博客/低频源属正常；官方/媒体源长期静默需手动探活确认是否失效")
+
+    print(f"\n[故障源] 连续失败 ≥ {sourcecheck.FAIL_WARN} 次：{len(result['failing'])} 个")
+    for s in result["failing"]:
+        print(f"  - [{s['group']}] {s['name']} 连续失败 {s['consecutive_fails']} 次"
+              f"：{s['last_error'][:60]}")
+
+    print(f"\n[孤儿记录] health 有、配置已删：{len(result['orphans'])} 个")
+    for sid in result["orphans"][:20]:
+        print(f"  - {sid}")
     return 0
 
 
@@ -302,7 +337,13 @@ def cmd_run(args):
         news_failures.extend(col_failures)
         news_entries = _drop_flagged_noise(news_entries, _log)
         enrich.attach(news_entries)
-        watch.attach_watch(news_entries, translations=i18n.load_news_store(), log=_log)
+        _run_trans = i18n.load_news_store()
+        for e in news_entries:
+            tr = _run_trans.get(e.get("link", "")) or {}
+            if tr.get("zh_title"):
+                e["zh_title"] = tr["zh_title"]
+        watch.attach_watch(news_entries, translations=_run_trans, log=_log)
+        news_entries, _near = enrich.cluster_duplicates(news_entries, log=_log)
         _log(f"资讯合计 {len(news_entries)} 条，失败信源 {len(news_failures)} 个，去重 {news_dup} 条")
 
     payload = {
@@ -590,9 +631,18 @@ def cmd_news(args):
     # 历史入库的噪音（交易/问询帖）在渲染层也过滤掉，不必等下次在线采集清理
     db_entries = _drop_flagged_noise(db_entries, None)
     enrich.attach(db_entries)
+    # 渲染层近似去重：给条目注入中文标题后按同语言 Jaccard 聚类，主条目留、转载折叠
+    for e in db_entries:
+        tr = news_trans.get(e.get("link", "")) or {}
+        if tr.get("zh_title"):
+            e["zh_title"] = tr["zh_title"]
     # 关键词关注（纯渲染层，不入库；匹配标题/摘要/中文译文）
     watch.attach_watch(db_entries, translations=news_trans,
                        log=None if getattr(args, "quiet", False) else _log)
+    db_entries, near_dup = enrich.cluster_duplicates(
+        db_entries, log=None if getattr(args, "quiet", False) else _log)
+    if near_dup and not getattr(args, "quiet", False):
+        _log(f"跨源近似去重：折叠 {near_dup} 条转载/同事件资讯")
     if pruned and not getattr(args, "quiet", False):
         _log(f"保留策略：清理 {pruned} 条 {db.RETENTION_DAYS} 天前的过期资讯")
 
@@ -741,6 +791,25 @@ def cmd_weekly(args):
             lines.append(f"- [{d}] [{zh(it)[:70]}]({it.get('link','')}) —— {it.get('source_name','')}")
         lines.append("")
 
+    # 信源体检附榜：近 7 天静默的启用源（低频博客正常，官方/媒体长期静默需人工探活）
+    feeds_doc = feeds.load_feeds(include_disabled=True)
+    check = sourcecheck.run_check(feeds_doc, entries, days=min(7, days))
+    if check["silent"] or check["failing"]:
+        lines += [f"## {'四' if watch_hits else '三'}、信源体检附榜", ""]
+        if check["silent"]:
+            lines.append(f"### 近 {check['days']} 天静默源（{len(check['silent'])}）")
+            for s in check["silent"][:15]:
+                last = (s["last_published"] or "")[:10] or "从未"
+                lines.append(f"- [{s['group']}] {s['name']}（最近条目 {last}）")
+            if len(check["silent"]) > 15:
+                lines.append(f"- ……另有 {len(check['silent']) - 15} 个，用 `radar.py source-check` 查看")
+            lines.append("")
+        if check["failing"]:
+            lines.append(f"### 连续故障源（{len(check['failing'])}）")
+            for s in check["failing"][:10]:
+                lines.append(f"- [{s['group']}] {s['name']}：连续失败 {s['consecutive_fails']} 次")
+            lines.append("")
+
     out = pathlib.Path(args.out) if args.out else (
         DATA / f"weekly-{datetime.now().strftime('%Y%m%d')}.md")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -826,7 +895,15 @@ def build_parser():
         prog="radar.py",
         description="AI 资讯雷达：主力为 RSS/Atom 信源采集（news）；GitHub 项目拉取（run）已封存保留。")
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("doctor").set_defaults(func=cmd_doctor)
+    doc = sub.add_parser("doctor")
+    doc.add_argument("--sources", action="store_true",
+                     help="顺带做信源体检（静默/故障/孤儿，纯本地）")
+    doc.add_argument("--days", type=int, default=7, help="信源体检的静默窗口天数，默认 7")
+    doc.set_defaults(func=cmd_doctor)
+    sc = sub.add_parser("source-check",
+                        help="信源体检：近 N 天静默源、连续故障源、health 孤儿记录（纯本地不联网）")
+    sc.add_argument("--days", type=int, default=7)
+    sc.set_defaults(func=cmd_source_check)
     sub.add_parser("categories").set_defaults(func=cmd_categories)
     r = sub.add_parser(
         "run",

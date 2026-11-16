@@ -211,6 +211,8 @@ window.__ModuleLoader__.load({
 .ain-form-badge.paper { background:#f9f0ff; color:#722ed1; border-color:#d3adf7; }
 .ain-form-badge.tutorial { background:#e6fffb; color:#08979c; border-color:#87e8de; }
 .ain-form-badge.opensource { background:#f0f5ff; color:#2f54eb; border-color:#adc6ff; }
+.ain-dup-badge { padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600;
+  background:#f5f5f5; color:#595959; border:1px solid #d9d9d9; cursor:help; }
 .ain-obtain { font-size:10px; color:var(--dsw-alias-label-secondary); margin-left:6px; }
 .ain-topics { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
 .ain-topic { padding:1px 7px; border-radius:10px; font-size:10px; border:none; cursor:pointer;
@@ -241,6 +243,25 @@ window.__ModuleLoader__.load({
   border:1px solid #ffd591; background:#fff7e6; color:#d46b08; font-family:inherit; }
 .ain-watch-chip-bar:hover { border-color:#d46b08; }
 .ain-watch-chip-bar.active { background:#d46b08; border-color:#d46b08; color:#fff; }
+.ain-watch-manage { padding:2px 9px; border-radius:11px; font-size:11px; cursor:pointer;
+  border:1px solid #d9d9d9; background:#fafafa; color:#595959; font-family:inherit; margin-left:4px; }
+.ain-watch-manage:hover, .ain-watch-manage.active { border-color:#d46b08; color:#d46b08; }
+.ain-watch-editor { border:1px solid #ffd591; background:#fffaf2; border-radius:10px;
+  padding:10px 12px; margin:-4px 0 8px; display:flex; flex-direction:column; gap:8px; }
+.ain-watch-add { display:flex; gap:8px; }
+.ain-watch-add input { flex:1; padding:5px 10px; border:1px solid #d9d9d9; border-radius:7px;
+  font-size:12px; font-family:inherit; min-width:0; }
+.ain-watch-add input:focus { outline:none; border-color:#d46b08; }
+.ain-watch-conf-list { display:flex; flex-wrap:wrap; gap:6px; }
+.ain-watch-empty { font-size:11px; color:#8c8c8c; }
+.ain-watch-conf { display:inline-flex; align-items:center; gap:5px; border:1px solid #ffd591;
+  background:#fff7e6; border-radius:9px; padding:1px 4px 1px 8px; font-size:11px; color:#d46b08; }
+.ain-watch-conf.off { opacity:.45; border-style:dashed; }
+.ain-watch-conf-term { max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ain-watch-conf-btn { border:none; background:transparent; color:#8c8c8c; cursor:pointer;
+  font-size:10px; padding:1px 4px; border-radius:5px; font-family:inherit; }
+.ain-watch-conf-btn:hover { background:#ffe7ba; color:#d46b08; }
+.ain-watch-conf-btn.danger:hover { background:#fff1f0; color:#cf1322; }
 .ain-modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
   display:flex; align-items:center; justify-content:center; padding:24px; }
 .ain-modal { width:min(820px, 94vw); max-height:86vh; display:flex; flex-direction:column;
@@ -330,6 +351,10 @@ window.__ModuleLoader__.load({
       const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
       const [weekly, setWeekly] = useState(null);  // 周报 Markdown（null=未打开）
       const [weeklyBusy, setWeeklyBusy] = useState(false);
+      const [watchConf, setWatchConf] = useState([]); // watch.json 全量关键词（含停用）
+      const [watchInput, setWatchInput] = useState('');
+      const [watchBusy, setWatchBusy] = useState(false);
+      const [watchEditorOpen, setWatchEditorOpen] = useState(false);
       // 已读状态本地覆盖层：{link: true/false}，服务端返回值作为初值
       const [readMap, setReadMap] = useState({});
 
@@ -360,6 +385,36 @@ window.__ModuleLoader__.load({
           setTranslating(false);
         }
       }, [load]);
+
+      // 载入关注词配置（面板管理用）
+      useEffect(() => {
+        api('/watch').then((d) => setWatchConf(d.keywords || [])).catch(() => {});
+      }, []);
+
+      // 关注词增删/启停：写服务端后重拉配置与资讯（服务端会离线重渲染 watch_hits）
+      const watchOp = useCallback(async (op, term, extra) => {
+        setWatchBusy(true);
+        setError('');
+        try {
+          const d = await api('/watch', {
+            method: 'POST',
+            body: JSON.stringify({ op, term, ...(extra || {}) }),
+          });
+          setWatchConf(d.keywords || []);
+          await load(false);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setWatchBusy(false);
+        }
+      }, [load]);
+
+      const addWatch = useCallback(async () => {
+        const term = watchInput.trim();
+        if (!term) return;
+        await watchOp('add', term);
+        setWatchInput('');
+      }, [watchInput, watchOp]);
 
       // 采集期间每秒轮询进度；完成后关定时器并 reload
       useEffect(() => {
@@ -611,14 +666,56 @@ window.__ModuleLoader__.load({
             onClick: () => setActiveTopic(activeTopic === t ? '' : t),
           }, `${t} ${n}`))),
         // 关键词关注筛选（watch_hits，由 watch.json 配置驱动）
-        !refreshing && watchList.length > 0 && h('div', { className: 'ain-topics-bar ain-watch-bar' },
+        !refreshing && (watchList.length > 0 || watchEditorOpen) && h('div', { className: 'ain-topics-bar ain-watch-bar' },
           h('span', { className: 'ain-topics-label' }, '关注'),
           watchList.map(([t, n]) => h('button', {
             key: t,
             className: 'ain-watch-chip-bar' + (activeWatch === t ? ' active' : ''),
             title: `只看命中关注词「${t}」的资讯（${n} 条）`,
             onClick: () => setActiveWatch(activeWatch === t ? '' : t),
-          }, `🔖 ${t} ${n}`))),
+          }, `🔖 ${t} ${n}`)),
+          h('button', {
+            key: 'manage',
+            className: 'ain-watch-manage' + (watchEditorOpen ? ' active' : ''),
+            title: '管理关注关键词',
+            onClick: () => setWatchEditorOpen(!watchEditorOpen),
+          }, watchEditorOpen ? '收起管理 ✕' : '管理 ⚙')),
+        // 关注词管理面板：输入添加，列表可停用/启用/删除
+        watchEditorOpen && h('div', { className: 'ain-watch-editor', key: 'watch-editor' },
+          h('div', { className: 'ain-watch-add' },
+            h('input', {
+              value: watchInput,
+              placeholder: '输入关键词，回车添加（英文按整词匹配，中文按子串）',
+              maxLength: 64,
+              disabled: watchBusy,
+              onChange: (ev) => setWatchInput(ev.target.value),
+              onKeyDown: (ev) => { if (ev.key === 'Enter') addWatch(); },
+            }),
+            h('button', {
+              className: 'ain-btn primary',
+              disabled: watchBusy || !watchInput.trim(),
+              onClick: addWatch,
+            }, '添加')),
+          h('div', { className: 'ain-watch-conf-list' },
+            watchConf.length === 0
+              ? h('span', { className: 'ain-watch-empty' }, '还没有关注词，添加一个试试（如 mcp、免费额度）')
+              : watchConf.map((k) => h('span', {
+                  key: k.term,
+                  className: 'ain-watch-conf' + (k.enabled === false ? ' off' : ''),
+                },
+                h('span', { className: 'ain-watch-conf-term', title: k.term }, `🔖 ${k.term}`),
+                h('button', {
+                  className: 'ain-watch-conf-btn',
+                  disabled: watchBusy,
+                  title: k.enabled === false ? '启用' : '停用',
+                  onClick: () => watchOp('toggle', k.term, { enabled: k.enabled === false }),
+                }, k.enabled === false ? '启用' : '停用'),
+                h('button', {
+                  className: 'ain-watch-conf-btn danger',
+                  disabled: watchBusy,
+                  title: '删除',
+                  onClick: () => watchOp('remove', k.term),
+                }, '删除'))))),
         failures.length > 0 && h('div', { className: 'ain-err' },
           `失败信源 ${failures.length} 个：${failures.map((f) => f.name).join('、')}`),
         news.length === 0 ? h('div', { className: 'ain-empty' }, '暂无资讯，点「在线刷新」采集')
@@ -640,6 +737,12 @@ window.__ModuleLoader__.load({
               const formBadge = (!isDeal && it.form && it.form !== 'news')
                 ? h('span', { className: `ain-form-badge ${it.form}` }, FORM_LABEL[it.form] || it.form)
                 : null;
+              const dupBadge = (!isDeal && it.dup_count > 0)
+                ? h('span', {
+                    className: 'ain-dup-badge',
+                    title: `同事件另有 ${it.dup_count} 家报道：${(it.dup_sources || []).join('、')}`,
+                  }, `🔗 另有 ${it.dup_count} 家`)
+                : null;
               const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                 ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
               return h('a', {
@@ -654,7 +757,7 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'ain-src' }, it.source_name),
                   h('span', { className: 'ain-gtag' }, it.group),
                   isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
-                  formBadge, obtainTxt,
+                  formBadge, dupBadge, obtainTxt,
                   h('span', { className: 'ain-time' }, fmtDate(it.published))),
                 h('div', { className: 't' }, title),
                 showOrig && h('div', { className: 'orig' }, it.title),
@@ -691,7 +794,7 @@ window.__ModuleLoader__.load({
                     h('span', { className: 'ain-src' }, it.source_name),
                     h('span', { className: 'ain-gtag' }, it.group),
                     isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
-                    formBadge, obtainTxt,
+                    formBadge, dupBadge, obtainTxt,
                     h('span', { className: 'ain-time' }, fmtDate(it.published))),
                   h('div', { className: 't' }, title),
                   showOrig && h('div', { className: 'orig' }, it.title),

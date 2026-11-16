@@ -93,3 +93,71 @@ def summarize(entries):
         for t in e.get("watch_hits", []):
             c[t] += 1
     return dict(c.most_common())
+
+
+# ---------------------------------------------------------------- 面板管理
+
+def load_raw():
+    """返回完整配置（含停用词），供面板管理；缺失时返回带注释的空骨架。"""
+    try:
+        doc = json.loads(WATCH_CONF.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"_comment": "关键词关注列表。命中的资讯会在面板高亮并可一键筛选；"
+                            "纯英文词按整词匹配，中文按子串匹配。改动即时生效，无需重启。",
+                "keywords": []}
+    except Exception:
+        return {"keywords": []}
+    doc.setdefault("keywords", [])
+    return doc
+
+
+def _save_raw(doc):
+    WATCH_CONF.parent.mkdir(parents=True, exist_ok=True)
+    tmp = WATCH_CONF.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(WATCH_CONF)
+
+
+def add_keyword(term):
+    """新增启用关键词；已存在（忽略大小写）则原样返回不重复添加。返回 (doc, added)。"""
+    term = (term or "").strip()
+    if not term:
+        raise ValueError("关键词不能为空")
+    if len(term) > 64:
+        raise ValueError("关键词最长 64 字符")
+    doc = load_raw()
+    for item in doc["keywords"]:
+        if str(item.get("term", "")).lower() == term.lower():
+            item["enabled"] = True  # 重新启用已停用的同名词
+            _save_raw(doc)
+            return doc, False
+    doc["keywords"].append({"term": term, "enabled": True})
+    _save_raw(doc)
+    return doc, True
+
+
+def remove_keyword(term):
+    """删除关键词（按忽略大小写匹配）。返回 (doc, removed)。"""
+    term = (term or "").strip().lower()
+    doc = load_raw()
+    before = len(doc["keywords"])
+    doc["keywords"] = [it for it in doc["keywords"]
+                       if str(it.get("term", "")).lower() != term]
+    removed = before != len(doc["keywords"])
+    if removed:
+        _save_raw(doc)
+    return doc, removed
+
+
+def toggle_keyword(term, enabled):
+    """启用/停用关键词。返回 (doc, changed)。"""
+    term = (term or "").strip().lower()
+    doc = load_raw()
+    changed = False
+    for item in doc["keywords"]:
+        if str(item.get("term", "")).lower() == term and bool(item.get("enabled", True)) != bool(enabled):
+            item["enabled"] = bool(enabled)
+            changed = True
+    if changed:
+        _save_raw(doc)
+    return doc, changed

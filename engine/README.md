@@ -27,7 +27,9 @@ python3 radar.py run --quick          # 只看今日 trending
 python3 radar.py run                  # trending + Search 全量，默认深度分析前 50
 python3 radar.py translate --todo     # 仓库简介翻译（另一套翻译库）
 
-python3 selftest.py                   # 离线回归测试（13 组断言）
+python3 radar.py source-check         # 信源体检：静默源/故障源/health 孤儿（v0.15，纯本地）
+python3 radar.py weekly               # 近 7 天周报 Markdown（含关注专区、主题分区、体检附榜）
+python3 selftest.py                   # 离线回归测试（19 组断言）
 ```
 
 每次 `news` 产出三份同一数据的文件：`data/news-*.html`（自包含单文件，浏览器直接打开）、
@@ -63,7 +65,8 @@ ai-git-radar/
 │   ├── feeds.py             # ★ RSS/Atom 采集：并发、gzip 解压、样式清洗、容错+缓存回退
 │   ├── collectors.py        # ★ 结构化采集器：OpenRouter 免费模型 / HN AI（零 key JSON API）
 │   ├── enrich.py            # ★ 正交分类：form/obtain/topics（29 标签含时政/国际，不局限 AI）/codes
-│   ├── watch.py             # ★ 关键词关注：watch.json 声明式配置，整词/子串匹配，渲染层打 watch_hits
+│   ├── watch.py             # ★ 关键词关注：watch.json 声明式配置 + 面板 CRUD，整词/子串匹配，渲染层打 watch_hits
+│   ├── sourcecheck.py       # ★ 信源体检（v0.15）：静默源/连续故障/health 孤儿，纯本地不联网
 │   ├── db.py                # SQLite 持久化（30 天保留、UPSERT by link、temp_store=MEMORY）
 │   ├── discover.py          # 信源自动发现：网页声明/常见路径/OPML 目录/远程清单 → 待审队列
 │   ├── mt.py                # 免费机翻（腾讯 transmart 主通道，零 key，双预算切片）
@@ -75,7 +78,7 @@ ai-git-radar/
 │   ├── scorer.py            # [legacy] 六维情报评分
 │   ├── report.py            # Markdown 渲染（资讯 + legacy 项目，中文优先、主归属常量）
 │   ├── html_report.py       # 自包含单文件 HTML（内联 CSS、零 JS、资讯/项目两套渲染）
-│   └── selftest.py          # 离线回归（17 组）
+│   └── selftest.py          # 离线回归（19 组）
 ├── references/              # 设计文档（数据源坑 30 条、评分方法论）
 ├── tools/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）

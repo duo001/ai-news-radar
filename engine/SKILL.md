@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.14.0
+version: 0.15.0
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -58,6 +58,11 @@ python3 radar.py news --translate            # 采集 + 机翻一条命令走完
 python3 radar.py weekly                       # 近 7 天周报 → data/weekly-YYYYMMDD.md
 python3 radar.py weekly --days 30 --per-topic 20   # 回溯 30 天、每主题最多 20 条
 # 关键词配置在 data/sources/watch.json（改完即生效，无需重启；面板「关注」条与周报专区共用）
+
+# ===== 信源体检（v0.15，纯本地不联网）=====
+python3 radar.py source-check                 # 近 7 天静默源 + 连续故障源 + health 孤儿记录
+python3 radar.py source-check --days 14       # 换静默窗口
+python3 radar.py doctor --sources             # 环境自检后顺带跑体检
 
 # ===== 已封存 legacy：GitHub 项目扫描（代码保留可用）=====
 python3 radar.py categories                  # 查看已注册 GitHub 类目与查询数
@@ -155,6 +160,10 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - **摘要补译（v0.13）**：翻译库按「标题必译、摘要可选」设计，早期实现里只要条目进了库就整体跳过，导致「标题已译、摘要空缺」的条目永远补不上。现在 `build_news_todo` 对这类条目产出 `only_summary` 任务，`auto_translate_news` 只送摘要文本、写入时保留原译文并另记 `summary_source`/`summary_translated_at`
 - **关键词关注（v0.14，`scripts/watch.py` + `data/sources/watch.json`）**：声明式配置 `{"keywords":[{"term":"mcp","enabled":true}]}`，改配置即时生效、零代码。纯 ASCII 词按整词匹配（`mcp` 不命中 `scmcp`，但也不匹配复数 `agents`，配词时注意单复数），中文走大小写不敏感子串。匹配范围是标题 + 摘要 + 中文译文（按 link 关联翻译库），命中条目带 `watch_hits` 列表，**纯渲染层计算、不入库**，历史数据可重算。面板有橙色「关注」筛选条（🔖 带计数），卡片上的命中词胶囊可点击直接筛选；配置缺失/损坏时功能静默关闭
 - **周报导出（v0.14，`radar.py weekly`）**：从 SQLite 读近 N 天（默认 7）资讯，套用 enrich + watch 后生成 Markdown 周报——总览表（条数/信源/关注命中/形态分布）、关注词命中专区、按 29 个主题分区（每主题默认 10 条，可 `--per-topic` 调）、未归类兜底。参数 `--days/--per-topic/--limit/--out/--print-md`，默认产物 `data/weekly-YYYYMMDD.md`。插件工具栏「📰 周报」按钮走 `POST /ai-news/weekly`，弹窗内轻量 Markdown 渲染并支持下载 .md
+- **跨源近似去重（v0.15，`enrich.cluster_duplicates`）**：同语言标题词元 Jaccard ≥ 0.62 且有效词 ≥ 4 时聚类，同事件多源只保留主条目（来源组优先级：厂商官方 > 学术 > 媒体 > 社区，其次时间新、标题长），被折叠条目标 `dup_of`、主条目录 `dup_count/dup_sources`，面板显示「🔗 另有 N 家」。纯渲染层不入库，跨语言不合并（有意取舍，见坑 41）
+- **无标签补全（v0.15）**：新增「AI 综合」标签收编 AI 泛讨论（AI 时代/热潮/机器学习），并给强领域信源组（厂商官方/学术/AI 媒体/安全/硬件等）配分组兜底标签，开发者社区等杂烩组不兜底；无标签率从 29.8% 降到 11.0%，剩下的多为版本号、日文短标题与确实跨领域的社区帖
+- **关注词面板管理（v0.15）**：`watch.py` 增 `add_keyword/remove_keyword/toggle_keyword/load_raw`（原子写、同名忽略大小写、64 字符上限），插件新增 `GET/POST /ai-news/watch`（op: add/remove/toggle），写入后自动离线重渲染让命中立即生效；面板「关注」条右侧「管理 ⚙」可直接增删启停，无需手改 JSON
+- **信源体检（v0.15，`scripts/sourcecheck.py` + `radar.py source-check`）**：纯本地分析三项——近 N 天 0 条的静默源（"最近条目"取 30 天全量、静默判定看短窗口）、`source-health.json` 连续失败 ≥2 的故障源、配置已删但 health 残留的孤儿记录；只报告不自动停用（低频博客静默是正常的），周报末尾自动附静默/故障榜
 
 ### 工作台形态：@local/ai-news-panel 插件
 

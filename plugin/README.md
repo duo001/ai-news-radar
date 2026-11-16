@@ -45,6 +45,8 @@
 | POST | `/read` | 标记已读，body `{links:[url…], read:true\|false}`；状态存 `data/news-read.json` |
 | POST | `/read-all` | 当前列表全部已读，body `{}` |
 | POST | `/weekly` | 生成周报，body `{days?,perTopic?,limit?}`；跑 `radar.py weekly` 并返回 `{path, markdown}` |
+| GET | `/watch` | 读关注词全量配置（含停用），返回 `{keywords:[{term,enabled}]}` |
+| POST | `/watch` | 关注词管理，body `{op:'add'\|'remove'\|'toggle', term, enabled?}`；写入后自动离线重渲染 |
 
 所有响应 `{ok:true,...}` 或 `{ok:false,error}`，`cache-control: no-store`。
 
