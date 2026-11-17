@@ -11,6 +11,8 @@ window.__ModuleLoader__.load({
 
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
+    // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
+    const BUILD_TAG = 'v0.18.3-build20261117';
 
     function groupColor(name) {
       let h = 0;
@@ -758,7 +760,7 @@ window.__ModuleLoader__.load({
 
       return h('div', { className: 'ain-wrap' },
         h('div', { className: 'ain-head' },
-          h('h2', { className: 'ain-title' }, 'AI 资讯'),
+          h('h2', { className: 'ain-title', 'data-build': BUILD_TAG }, `AI 资讯 · ${BUILD_TAG}`),
           h('span', { className: 'ain-meta', style: { margin: 0 } }, `${news.length} 条`),
           (data && data.news_dup > 0) && h('span', { className: 'ain-dup' },
             `去重 ${data.news_dup} 条`),
