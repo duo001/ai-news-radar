@@ -1,9 +1,8 @@
 name: selftest
 
+# 仅手动触发：个人项目提交前本地已跑过 selftest，无需每次 push 重复消耗 CI。
+# 大改或发版前，到 GitHub Actions 页选 selftest → Run workflow 手动跑一次。
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -33,7 +32,7 @@ jobs:
             echo "node 不可用，跳过 JS 语法检查"
           fi
 
-      - name: 离线自测（20 组断言）
+      - name: 离线自测（21 组断言）
         working-directory: engine
         run: python scripts/selftest.py
 

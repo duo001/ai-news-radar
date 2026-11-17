@@ -6,7 +6,7 @@ AI 资讯工作台：并发聚合一批零密钥 RSS/Atom AI 资讯信源，清�
 
 [![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
 
-> 每次 push 自动在 Python 3.10 / 3.12 上跑 20 组离线自测 + 语法检查 + 信源配置校验。
+> CI 为**手动触发**（GitHub Actions 页 → selftest → Run workflow），在 Python 3.10 / 3.12 上跑 21 组离线自测 + 语法检查 + 信源配置校验。日常提交前本地跑 `python engine/scripts/selftest.py` 即可，push 不再触发 run。
 
 ## 仓库结构（monorepo）
 
