@@ -4801,6 +4801,29 @@
       "group": "其他",
       "kind": "rss",
       "tags": []
+    },
+    {
+      "id": "eugeneyan-com-rss-3",
+      "name": "Eugene Yan",
+      "url": "https://eugeneyan.com/rss/",
+      "kind": "rss",
+      "group": "个人与社区",
+      "tags": [],
+      "enabled": true
+    },
+    {
+      "id": "linuxdo-radar-verified",
+      "name": "LINUX DO · 福利雷达（已验证）",
+      "url": "https://radar.zichuanlan.top/rss.xml?preset=verified&limit=50",
+      "group": "模型优惠与福利",
+      "kind": "rss",
+      "tags": [
+        "linuxdo",
+        "福利",
+        "白嫖",
+        "优惠"
+      ],
+      "enabled": true
     }
   ]
 }
