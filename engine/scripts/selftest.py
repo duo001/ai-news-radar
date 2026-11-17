@@ -622,6 +622,58 @@ def test_backup():
         backup.DATA = orig_data
 
 
+def test_client_hooks():
+    """静态扫描 plugin/client.js：Hook 不得出现在条件 return 之后（白屏根因回归测试，坑 48）。
+
+    轻量大括号深度跟踪：在组件函数体内一旦出现同层级的提前 return，
+    其后再出现 useState/useEffect/useCallback/useMemo/useRef 即判违规。
+    不做完整 JS 解析——本仓代码风格固定（无 class 组件、无 switch），够用且零依赖。
+    """
+    import pathlib, re
+    client = pathlib.Path(__file__).resolve().parent.parent.parent / "plugin" / "client.js"
+    if not client.exists():
+        check(False, "前端：client.js 存在")
+        return
+    src = client.read_text(encoding="utf-8")
+    hook_re = re.compile(r"\b(useState|useEffect|useCallback|useMemo|useRef|useReducer)\s*\(")
+
+    # 只扫描组件函数区间：function XxxPanel() { ... }（本仓组件均为 function 声明）
+    violations = []
+    for m in re.finditer(r"function\s+(\w+)\s*\([^)]*\)\s*\{", src):
+        name, start = m.group(1), m.end()
+        depth, i, body_start = 1, start, start
+        top_returned = False   # 组件顶层（depth==1）出现过提前 return
+        while i < len(src) and depth > 0:
+            ch = src[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            i += 1
+        body = src[body_start:i - 1]
+        line_base = src[:body_start].count("\n") + 1
+        d = 1
+        for off, raw in enumerate(body.splitlines(), 1):
+            line = raw.split("//", 1)[0]
+            stripped = line.strip()
+            is_return = (stripped.startswith("return ") or stripped == "return;"
+                         or stripped.startswith("return(") or stripped.startswith("return h("))
+            if is_return and d == 1:
+                top_returned = True
+            if hook_re.search(line) and d == 1 and top_returned:
+                violations.append(f"{name} L{line_base + off}: {stripped[:60]}")
+            d += line.count("{") - line.count("}")
+            if d < 1:
+                d = 1
+    check(not violations, f"前端：无 Hook 位于条件 return 之后（{len(violations)} 处违规）"
+          + (("：" + "; ".join(violations[:3])) if violations else ""))
+    # 错误日志与边界设施齐备
+    check("ErrorBoundary" in src and "getDerivedStateFromError" in src,
+          "前端：ErrorBoundary 错误边界存在，渲染崩溃不再白屏")
+    check("pushClientLog" in src and "/logs" in src,
+          "前端：错误上报 pushClientLog 与 /logs 通道存在")
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -1134,6 +1186,9 @@ def main():
     test_glossary()
     test_netcfg()
     test_backup()
+
+    print("[21] 前端 Hooks 规则与错误日志设施（防白屏回归）")
+    test_client_hooks()
     print("\n全部自测通过 ✅")
 
 

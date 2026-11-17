@@ -50,6 +50,9 @@
 | GET | `/proxy` | 读代理配置，返回 `{enabled,url,no_proxy}` |
 | POST | `/proxy` | 保存代理，body `{enabled,url,noProxy}`；启用时校验 http/https 地址并拒绝 socks |
 | POST | `/proxy/test` | 实测代理连通，body `{url}`，返回 `{ok,elapsed_ms,error,sample}` |
+| POST | `/logs` | 前端错误日志上报，body `{entries:[{ts,level,message,extra,url}]}`，落盘引擎 `data/client-errors.log`（JSONL，500 行环形） |
+| GET | `/logs?limit=200` | 读取前端错误日志（倒序由前端处理） |
+| DELETE | `/logs` | 清空错误日志 |
 
 所有响应 `{ok:true,...}` 或 `{ok:false,error}`，`cache-control: no-store`。
 

@@ -285,6 +285,21 @@ window.__ModuleLoader__.load({
   padding:12px 16px; border-bottom:1px solid var(--dsw-alias-border-l1); }
 .ain-modal-actions { display:flex; gap:8px; }
 .ain-modal-body { padding:16px 20px; overflow:auto; line-height:1.7; }
+/* 错误日志弹窗 */
+.ain-log-list { display:flex; flex-direction:column; gap:8px; }
+.ain-log-line { border:1px solid #d9d9d9; border-radius:8px; padding:8px 10px; font-size:12px;
+  background:#fafafa; }
+.ain-log-line.ain-log-error { border-color:#ffa39e; background:#fff1f0; }
+.ain-log-line.ain-log-warn { border-color:#ffd591; background:#fff7e6; }
+.ain-log-head { display:flex; gap:8px; align-items:center; margin-bottom:3px; }
+.ain-log-level { font-weight:700; font-size:10px; padding:1px 6px; border-radius:4px;
+  text-transform:uppercase; background:#d9d9d9; color:#fff; }
+.ain-log-error .ain-log-level { background:#cf1322; }
+.ain-log-warn .ain-log-level { background:#d46b08; }
+.ain-log-ts { color:#8c8c8c; font-size:10px; }
+.ain-log-msg { word-break:break-word; }
+.ain-log-extra { margin:4px 0 0; padding:6px 8px; background:rgba(0,0,0,.04); border-radius:5px;
+  font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:180px; overflow:auto; }
 .ain-modal-body h2 { font-size:18px; margin:6px 0 10px; }
 .ain-modal-body h3 { font-size:15px; margin:16px 0 8px; color:var(--dsw-alias-brand-primary); }
 .ain-modal-body h4 { font-size:13px; margin:12px 0 6px; }
@@ -331,13 +346,95 @@ window.__ModuleLoader__.load({
 .ain-spin { opacity:.6; }
 `;
 
+    // ===== 前端错误日志（v0.18）=====
+    // 本地环形缓冲（最多 50 条），同时批量/失焦时上报后端落盘 data/client-errors.log
+    const LOG_MAX = 50;
+    const clientLog = [];
+    let logFlushTimer = null;
+    function pushClientLog(level, message, extra) {
+      const entry = {
+        ts: new Date().toISOString(),
+        level,
+        message: String(message || '').slice(0, 2000),
+        url: (typeof location !== 'undefined' && location.href) || '',
+        ...(extra ? { extra: String(extra).slice(0, 2000) } : {}),
+      };
+      clientLog.push(entry);
+      if (clientLog.length > LOG_MAX) clientLog.shift();
+      scheduleFlush();
+      // 同时打到浏览器控制台，便于 F12 实时查看
+      try { (console[level] || console.log).call(console, '[ai-news]', entry.message, extra || ''); } catch { /* noop */ }
+    }
+    function scheduleFlush() {
+      if (logFlushTimer) return;
+      logFlushTimer = setTimeout(flushClientLog, 3000);
+    }
+    async function flushClientLog() {
+      if (logFlushTimer) { clearTimeout(logFlushTimer); logFlushTimer = null; }
+      if (!clientLog.length) return;
+      const batch = clientLog.splice(0, clientLog.length);
+      try {
+        await fetch(API + '/logs', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ entries: batch }),
+        });
+      } catch {
+        // 上报失败把日志放回缓冲，等下一轮；超量时丢弃最旧的
+        clientLog.unshift(...batch);
+        while (clientLog.length > LOG_MAX) clientLog.shift();
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('error', (ev) => {
+        pushClientLog('error', ev.message || 'window error',
+          `${ev.filename || ''}:${ev.lineno || 0}:${ev.colno || 0}`);
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        const r = ev.reason;
+        pushClientLog('error', (r && r.message) ? r.message : 'unhandled promise rejection',
+          (r && r.stack) ? String(r.stack).slice(0, 1500) : String(r));
+      });
+      window.addEventListener('pagehide', () => { try { flushClientLog(); } catch { /* noop */ } });
+    }
+
+    // React 错误边界：子树渲染抛错时兜底显示，而不是整个面板白屏
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { error: null };
+      }
+      static getDerivedStateFromError(error) { return { error }; }
+      componentDidCatch(error, info) {
+        pushClientLog('error', `渲染崩溃: ${(error && error.message) || error}`,
+          (info && info.componentStack) || (error && error.stack) || '');
+      }
+      render() {
+        if (this.state.error) {
+          return h('div', { className: 'ain-wrap' },
+            h('div', { className: 'ain-err', style: { whiteSpace: 'pre-wrap', margin: '12px 0' } },
+              h('strong', null, '面板渲染出错（已记录到错误日志）'),
+              h('div', { style: { marginTop: 6, fontSize: 12, opacity: 0.85 } },
+                String(this.state.error.message || this.state.error))),
+            h('div', { style: { display: 'flex', gap: 8 } },
+              h('button', { className: 'ain-btn primary', onClick: () => this.setState({ error: null }) }, '重试渲染'),
+              h('button', { className: 'ain-btn', onClick: () => location.reload() }, '刷新页面')));
+        }
+        return this.props.children;
+      }
+    }
+
     async function api(path, opts) {
       const res = await fetch(API + path, {
         headers: { 'content-type': 'application/json' },
         ...opts,
       });
       const data = await res.json().catch(() => ({ ok: false, error: `HTTP ${res.status}` }));
-      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!res.ok || data.ok === false) {
+        const msg = data.error || `HTTP ${res.status}`;
+        pushClientLog('warn', `接口失败 ${(opts && opts.method) || 'GET'} ${path}：${msg}`);
+        throw new Error(msg);
+      }
       return data;
     }
 
@@ -376,6 +473,9 @@ window.__ModuleLoader__.load({
       const [proxyNoProxy, setProxyNoProxy] = useState('');
       const [proxyBusy, setProxyBusy] = useState(false);
       const [proxyTest, setProxyTest] = useState(null); // {ok,error,elapsed_ms,sample} | null
+      const [logOpen, setLogOpen] = useState(false);      // 错误日志弹窗
+      const [logEntries, setLogEntries] = useState([]);
+      const [logBusy, setLogBusy] = useState(false);
       // 已读状态本地覆盖层：{link: true/false}，服务端返回值作为初值
       const [readMap, setReadMap] = useState({});
 
@@ -455,6 +555,29 @@ window.__ModuleLoader__.load({
         }
       }, [proxyInput]);
 
+      // 错误日志：拉取后端落盘的 client-errors.log 查看
+      const openLogs = useCallback(async () => {
+        setLogBusy(true);
+        setError('');
+        try {
+          const d = await api('/logs?limit=200');
+          setLogEntries(d.logs || []);
+          setLogOpen(true);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLogBusy(false);
+        }
+      }, []);
+      const clearLogs = useCallback(async () => {
+        try {
+          await api('/logs', { method: 'DELETE' });
+          setLogEntries([]);
+        } catch (err) {
+          setError(err.message);
+        }
+      }, []);
+
       // 关注词增删/启停：写服务端后重拉配置与资讯（服务端会离线重渲染 watch_hits）
       const watchOp = useCallback(async (op, term, extra) => {
         setWatchBusy(true);
@@ -502,6 +625,22 @@ window.__ModuleLoader__.load({
 
       useEffect(() => { load(false); }, [load]);
 
+      // 周报：后端跑 radar.py weekly，返回 Markdown 文本在弹窗中展示
+      // 注意：useCallback 是 Hook，必须放在下面 loading/error 的条件 return 之前，
+      // 否则条件返回会改变 Hook 调用次数导致 React 抛错白屏
+      const runWeekly = useCallback(async () => {
+        setWeeklyBusy(true);
+        setError('');
+        try {
+          const d = await api('/weekly', { method: 'POST', body: '{}' });
+          setWeekly(d.markdown || '（周报为空）');
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setWeeklyBusy(false);
+        }
+      }, []);
+
       if (loading) return h('div', { className: 'ain-empty' }, '正在读取资讯缓存…');
       if (error) return h('div', { className: 'ain-wrap' },
         h('div', { className: 'ain-err' }, `加载失败：${error}`),
@@ -536,20 +675,6 @@ window.__ModuleLoader__.load({
         try { await api('/read-all', { method: 'POST', body: '{}' }); }
         catch (_) { /* 忽略 */ }
       };
-
-      // 周报：后端跑 radar.py weekly，返回 Markdown 文本在弹窗中展示
-      const runWeekly = useCallback(async () => {
-        setWeeklyBusy(true);
-        setError('');
-        try {
-          const d = await api('/weekly', { method: 'POST', body: '{}' });
-          setWeekly(d.markdown || '（周报为空）');
-        } catch (err) {
-          setError(err.message);
-        } finally {
-          setWeeklyBusy(false);
-        }
-      }, []);
 
       // 搜索关键字：命中标题/摘要/中文译文任一即保留（大小写不敏感）
       const q = query.trim().toLowerCase();
@@ -673,7 +798,12 @@ window.__ModuleLoader__.load({
             title: proxyConf.enabled
               ? `当前通过代理 ${proxyConf.url} 拉取资讯，点击管理`
               : '配置代理：填入代理地址后所有信源与机翻请求都走代理',
-          }, proxyConf.enabled ? '🌐 代理已开' : '🌐 网络')),
+          }, proxyConf.enabled ? '🌐 代理已开' : '🌐 网络'),
+          h('button', {
+            className: 'ain-btn', disabled: logBusy,
+            onClick: openLogs,
+            title: '查看前端错误日志（渲染崩溃、接口失败等，落盘在引擎 data/client-errors.log）',
+          }, logBusy ? '读取中…' : '🐞 日志')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
           h('input', {
@@ -934,7 +1064,35 @@ window.__ModuleLoader__.load({
                   },
                 }, '下载 .md'),
                 h('button', { className: 'ain-btn primary', onClick: () => setWeekly(null) }, '关闭'))),
-            h('div', { className: 'ain-modal-body', innerHTML: renderMd(weekly) })))
+            h('div', { className: 'ain-modal-body', innerHTML: renderMd(weekly) }))),
+
+        // 错误日志弹窗：倒序展示，error 红、warn 橙，可复制可清空
+        logOpen && h('div', { className: 'ain-modal-mask', onClick: () => setLogOpen(false) },
+          h('div', { className: 'ain-modal', onClick: (e) => e.stopPropagation() },
+            h('div', { className: 'ain-modal-head' },
+              h('strong', null, `前端错误日志（${logEntries.length} 条，最多保留 500 条）`),
+              h('div', { className: 'ain-modal-actions' },
+                h('button', {
+                  className: 'ain-btn',
+                  onClick: () => {
+                    const text = logEntries.map((e) =>
+                      `${e.ts} [${e.level}] ${e.message}${e.extra ? `\n    ${e.extra}` : ''}`).join('\n');
+                    navigator.clipboard?.writeText(text).catch(() => {});
+                  },
+                }, '复制全部'),
+                h('button', { className: 'ain-btn', onClick: clearLogs }, '清空'),
+                h('button', { className: 'ain-btn primary', onClick: () => setLogOpen(false) }, '关闭'))),
+            h('div', { className: 'ain-modal-body' },
+              logEntries.length === 0
+                ? h('div', { className: 'ain-empty' }, '暂无错误日志 🎉')
+                : h('div', { className: 'ain-log-list' },
+                  [...logEntries].reverse().map((e, i) =>
+                    h('div', { key: i, className: `ain-log-line ain-log-${e.level || 'info'}` },
+                      h('div', { className: 'ain-log-head' },
+                        h('span', { className: 'ain-log-level' }, e.level || 'info'),
+                        h('span', { className: 'ain-log-ts' }, (e.ts || '').replace('T', ' ').slice(0, 19))),
+                      h('div', { className: 'ain-log-msg' }, e.message),
+                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))))
     }
 
     // 极简单列 Markdown → HTML（仅周报用，输入来自本地生成的可信文本，仍做转义）
@@ -1177,13 +1335,14 @@ window.__ModuleLoader__.load({
     // ---------- 主面板（含 tab 切换）----------
     function Panel() {
       const [tab, setTab] = useState('news');
-      return h(React.Fragment, null,
-        h('div', { className: 'ain-tabs' },
-          h('button', { className: `ain-tab ${tab === 'news' ? 'active' : ''}`, onClick: () => setTab('news') }, '资讯'),
-          h('button', { className: `ain-tab ${tab === 'discover' ? 'active' : ''}`, onClick: () => setTab('discover') }, '发现'),
-          h('button', { className: `ain-tab ${tab === 'sources' ? 'active' : ''}`, onClick: () => setTab('sources') }, '信源维护')),
-        tab === 'news' ? h(NewsPanel)
-          : tab === 'discover' ? h(DiscoverPanel) : h(SourcePanel));
+      return h(ErrorBoundary, null,
+        h(React.Fragment, null,
+          h('div', { className: 'ain-tabs' },
+            h('button', { className: `ain-tab ${tab === 'news' ? 'active' : ''}`, onClick: () => setTab('news') }, '资讯'),
+            h('button', { className: `ain-tab ${tab === 'discover' ? 'active' : ''}`, onClick: () => setTab('discover') }, '发现'),
+            h('button', { className: `ain-tab ${tab === 'sources' ? 'active' : ''}`, onClick: () => setTab('sources') }, '信源维护')),
+          tab === 'news' ? h(NewsPanel)
+            : tab === 'discover' ? h(DiscoverPanel) : h(SourcePanel)));
     }
 
     // 侧边栏图标（ownerProps 提供 size/active）

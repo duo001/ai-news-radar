@@ -44,6 +44,9 @@ const DEALS_JSON = path.join(ENGINE_DIR, 'data', 'deals.json');
 const WATCH_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'watch.json');
 // 代理配置：与 scripts/netcfg.py 同一份文件，填了地址后所有外网请求走代理
 const PROXY_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'proxy.json');
+// 前端错误日志（v0.18）：client 半上报，按行追加 JSONL，最多保留 500 行
+const ERROR_LOG = path.join(ENGINE_DIR, 'data', 'client-errors.log');
+const ERROR_LOG_MAX_LINES = 500;
 let dealsCache = null;
 let dealsCacheAt = 0;
 const DEALS_CACHE_TTL_MS = 10 * 60 * 1000;   // 情报类低频变化，10 分钟
@@ -183,6 +186,46 @@ function countUnread(state, cache) {
 
 // ---- 代理配置（proxy.json），与 scripts/netcfg.py 同一份文件 ----
 const PROXY_DEFAULT = { enabled: false, url: '', no_proxy: '' };
+
+// ---- 前端错误日志（v0.18）：JSONL 追加，超量只留最新 ERROR_LOG_MAX_LINES 行 ----
+async function appendClientLogs(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return { written: 0 };
+  await mkdir(path.dirname(ERROR_LOG), { recursive: true });
+  const lines = entries
+    .filter((e) => e && typeof e === 'object')
+    .map((e) => JSON.stringify({
+      ts: e.ts || new Date().toISOString(),
+      level: ['error', 'warn', 'info'].includes(e.level) ? e.level : 'info',
+      message: String(e.message || '').slice(0, 2000),
+      extra: e.extra ? String(e.extra).slice(0, 2000) : '',
+      url: String(e.url || '').slice(0, 500),
+    }))
+    .join('\n');
+  if (!lines) return { written: 0 };
+  await writeFile(ERROR_LOG, `${lines}\n`, { flag: 'a', encoding: 'utf-8' });
+  // 超量裁剪：只保留最后 N 行
+  try {
+    const all = (await readFile(ERROR_LOG, 'utf-8')).split('\n').filter(Boolean);
+    if (all.length > ERROR_LOG_MAX_LINES) {
+      const kept = all.slice(all.length - ERROR_LOG_MAX_LINES);
+      await writeFile(ERROR_LOG, `${kept.join('\n')}\n`, 'utf-8');
+    }
+  } catch { /* 裁剪失败不影响写入 */ }
+  return { written: entries.length };
+}
+
+async function readClientLogs(limit = 200) {
+  try {
+    const raw = await readFile(ERROR_LOG, 'utf-8');
+    const lines = raw.split('\n').filter(Boolean);
+    const parsed = lines.map((l) => {
+      try { return JSON.parse(l); } catch { return null; }
+    }).filter(Boolean);
+    return parsed.slice(-Math.max(1, Math.min(limit, 500)));
+  } catch {
+    return []; // 日志文件不存在是正常状态
+  }
+}
 
 async function readProxy() {
   try {
@@ -723,6 +766,26 @@ export async function apply(ctx) {
         }
         const r = await testProxy(url);
         sendJson(res, 200, r);
+        return;
+      }
+
+      // 前端错误日志：POST 上报落盘 / GET 查看 / DELETE 清空
+      if (req.method === 'POST' && route === '/logs') {
+        const body = await readJsonBody(req);
+        const r = await appendClientLogs(body.entries || []);
+        sendJson(res, 200, { ok: true, ...r });
+        return;
+      }
+      if (req.method === 'GET' && route === '/logs') {
+        const urlObj = new URL(req.url, 'http://local');
+        const limit = Number(urlObj.searchParams.get('limit')) || 200;
+        const logs = await readClientLogs(limit);
+        sendJson(res, 200, { ok: true, logs, total: logs.length });
+        return;
+      }
+      if (req.method === 'DELETE' && route === '/logs') {
+        try { await writeFile(ERROR_LOG, '', 'utf-8'); } catch { /* 文件不存在忽略 */ }
+        sendJson(res, 200, { ok: true, cleared: true });
         return;
       }
 

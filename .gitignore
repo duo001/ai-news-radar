@@ -43,3 +43,6 @@ NOTES.local.md
 # 资产备份 zip 与代理配置（本机环境相关，不入库）
 **/data/backups/
 **/data/sources/proxy.json
+
+# 前端错误日志（运行时落盘，不入库）
+**/data/client-errors.log

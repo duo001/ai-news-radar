@@ -30,7 +30,7 @@ python3 radar.py translate --todo     # 仓库简介翻译（另一套翻译库�
 python3 radar.py source-check         # 信源体检：静默源/故障源/health 孤儿（v0.15，纯本地）
 python3 radar.py weekly               # 近 7 天周报 Markdown（含关注专区、主题分区、体检附榜）
 python3 radar.py backup               # 资产备份：翻译库/已读/关注词/DB → data/backups/*.zip
-python3 selftest.py                   # 离线回归测试（20 组断言）
+python3 selftest.py                   # 离线回归测试（21 组断言）
 ```
 
 每次 `news` 产出三份同一数据的文件：`data/news-*.html`（自包含单文件，浏览器直接打开）、
@@ -82,7 +82,7 @@ ai-git-radar/
 │   ├── scorer.py            # [legacy] 六维情报评分
 │   ├── report.py            # Markdown 渲染（资讯 + legacy 项目，中文优先、主归属常量）
 │   ├── html_report.py       # 自包含单文件 HTML（内联 CSS、零 JS、资讯/项目两套渲染）
-│   └── selftest.py          # 离线回归（20 组）
+│   └── selftest.py          # 离线回归（21 组，含前端 Hooks 静态扫描）
 ├── references/              # 设计文档（数据源坑 30 条、评分方法论）
 ├── tools/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
