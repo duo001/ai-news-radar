@@ -705,6 +705,23 @@ def test_client_hooks():
           "前端：ErrorBoundary 错误边界存在，渲染崩溃不再白屏")
     check("pushClientLog" in src and "/logs" in src,
           "前端：错误上报 pushClientLog 与 /logs 通道存在")
+    # 坑 51 回归：去重徽章必须是模块级 helper 且两个视图都调用（曾只在 masonry 定义、
+    # list 视图引用未定义标识符，ReferenceError 整面板崩）
+    check(re.search(r"function\s+dupBadgeOf\s*\(", src) is not None,
+          "前端：dupBadgeOf 为模块级 helper")
+    check(src.count("dupBadgeOf(it)") >= 2,
+          "前端：masonry 与 list 两个视图都通过 dupBadgeOf 渲染去重徽章")
+    # 两视图卡片回调里出现的共享 helper 都必须在组件/模块级有定义（function 或 const 箭头），
+    # 不能只在某一个 map 回调里局部声明——防止再出作用域漏定义（坑 51）
+    masonry = src[src.index("filtered.map((it) => {"):src.index("orderedGroups.map")]
+    listsec = src[src.index("items.map((it) => {"):]
+    for helper in ("chipsOf", "watchOf", "groupColor", "srcInitial", "fmtDate", "dupBadgeOf"):
+        defined = (re.search(rf"function\s+{helper}\s*\(", src) is not None
+                   or re.search(rf"const\s+{helper}\s*=", src) is not None)
+        # 局部 map 回调里的 const 不算（那正是坑 51 的形态）：要求定义出现在两个回调区间之外
+        local_only = (re.search(rf"const\s+{helper}\s*=", masonry) is not None
+                      or re.search(rf"const\s+{helper}\s*=", listsec) is not None)
+        check(defined and not local_only, f"前端：共享 helper {helper} 有组件/模块级定义")
 
 
 def main():

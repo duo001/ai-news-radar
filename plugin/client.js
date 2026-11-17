@@ -92,6 +92,16 @@ window.__ModuleLoader__.load({
       return out;
     }
 
+    // 卡片上的近似去重徽章（🔗 另有 N 家）；模块级纯渲染，masonry/list 两视图共用
+    // 曾只在 masonry 分支定义、list 分支引用导致 ReferenceError 整面板崩（坑 51）
+    function dupBadgeOf(it) {
+      if (it._kind === 'deal' || !(it.dup_count > 0)) return null;
+      return h('span', {
+        className: 'ain-dup-badge',
+        title: `同事件另有 ${it.dup_count} 家报道：${(it.dup_sources || []).join('、')}`,
+      }, `🔗 另有 ${it.dup_count} 家`);
+    }
+
     // 卡片上的关键词关注胶囊（🔖 标记，点击可按该词筛选）；模块级纯渲染
     function watchChips(it, watchState) {
       const hits = Array.isArray(it.watch_hits) ? it.watch_hits : [];
@@ -979,12 +989,7 @@ window.__ModuleLoader__.load({
               const formBadge = (!isDeal && it.form && it.form !== 'news')
                 ? h('span', { className: `ain-form-badge ${it.form}` }, FORM_LABEL[it.form] || it.form)
                 : null;
-              const dupBadge = (!isDeal && it.dup_count > 0)
-                ? h('span', {
-                    className: 'ain-dup-badge',
-                    title: `同事件另有 ${it.dup_count} 家报道：${(it.dup_sources || []).join('、')}`,
-                  }, `🔗 另有 ${it.dup_count} 家`)
-                : null;
+              const dupBadge = dupBadgeOf(it);
               const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                 ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
               return h('a', {
@@ -1022,6 +1027,7 @@ window.__ModuleLoader__.load({
                 const formBadge = (!isDeal && it.form && it.form !== 'news')
                   ? h('span', { className: `ain-form-badge ${it.form}` }, FORM_LABEL[it.form] || it.form)
                   : null;
+                const dupBadge = dupBadgeOf(it);
                 const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                   ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
                 return h('a', {
