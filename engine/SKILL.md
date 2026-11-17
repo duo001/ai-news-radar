@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.18.10
+version: 0.18.11
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 

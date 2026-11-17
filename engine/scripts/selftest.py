@@ -653,6 +653,14 @@ def test_news_persistence_mixed_types():
     check("http.client.IncompleteRead" in src_text
           and issubclass(_hc.IncompleteRead, Exception),
           "采集：IncompleteRead 被显式捕获并回退缓存，不中断整轮采集")
+    # 面板快照窗口：默认 7 天，--days 可覆盖；DB 保留期（30 天）与快照窗口解耦
+    check(radar.PANEL_WINDOW_DAYS == 7, "快照：面板窗口默认 7 天")
+    check(radar._panel_days(type("A", (), {"days": 3})()) == 3, "快照：--days 覆盖生效")
+    check(radar._panel_days(type("A", (), {})()) == 7, "快照：缺省回落到 7 天")
+    check(radar._panel_days(type("A", (), {"days": None})()) == 7, "快照：None 回落到 7 天")
+    import db as _db
+    check(_db.RETENTION_DAYS >= radar.PANEL_WINDOW_DAYS,
+          "快照：DB 保留期不短于面板窗口（历史不丢）")
 
 
 def test_client_hooks():

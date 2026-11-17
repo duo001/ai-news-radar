@@ -46,6 +46,16 @@ import db
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 
+# 面板/JSON 快照的时间窗口（天）：DB 仍按 db.RETENTION_DAYS 保留，
+# 但对外快照只铺最近 N 天，避免几百个源铺开 30 天后列表过长。
+PANEL_WINDOW_DAYS = 7
+
+
+def _panel_days(args):
+    """取面板快照窗口天数：命令行 --days 优先，缺省 PANEL_WINDOW_DAYS。"""
+    v = getattr(args, "days", None)
+    return v if isinstance(v, int) and v > 0 else PANEL_WINDOW_DAYS
+
 
 def _log(msg):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -597,7 +607,7 @@ def cmd_news(args):
     if offline:
         # 离线模式：DB 就是持久化缓存，跳过采集直接读
         # DB 空时回退到 feed 缓存兜底（首次离线使用场景）
-        db_entries = db.query_news(days=db.RETENTION_DAYS)
+        db_entries = db.query_news(days=_panel_days(args))
         if db_entries:
             entries, failures, dup_count = db_entries, [], 0
             if not getattr(args, "quiet", False):
@@ -666,9 +676,9 @@ def cmd_news(args):
     elif col_entries:
         db.upsert_news(_serialize_news(col_entries))
     pruned = db.prune_old()
-    # 从 DB 读回最近 RETENTION_DAYS 天，作为插件消费的 JSON 快照
-    # （这样历史资讯不丢、跨采集合并，且 JSON 恒定在 30 天窗口内，体积可控）
-    db_entries = db.query_news(days=db.RETENTION_DAYS)
+    # 从 DB 读回最近 PANEL_WINDOW_DAYS 天，作为插件消费的 JSON 快照
+    # （DB 仍保留 RETENTION_DAYS 天做历史，快照只铺 7 天，列表长度可控）
+    db_entries = db.query_news(days=_panel_days(args))
     # 历史条目（含此前未增强的 RSS 数据）在渲染前统一补算 form/obtain/codes
     # 历史入库的噪音（交易/问询帖）在渲染层也过滤掉，不必等下次在线采集清理
     db_entries = _drop_flagged_noise(db_entries, None)
@@ -985,6 +995,8 @@ def build_parser():
     n.add_argument("--per-source", type=int, default=8, help="每个信源最多取多少条（默认 8）")
     n.add_argument("--offline", action="store_true", help="只用缓存的 feed XML")
     n.add_argument("--workers", type=int, default=8, help="并发抓取信源数（默认 8；1 为串行）")
+    n.add_argument("--days", type=int, default=PANEL_WINDOW_DAYS,
+                   help="面板快照窗口天数（默认 7；DB 仍保留 30 天历史）")
     n.add_argument("--out", default="", help="可选：额外把资讯写成指定 Markdown 文件")
     n.add_argument("--json-out", default="",
                    help="可选：把资讯 JSON 另写到固定路径（工作台插件用，避免时间戳文件名）")

@@ -106,6 +106,10 @@ ai-git-radar/
   下次运行自动出现在报告里。规则写法（强弱词、`strict_topic_match`、双通道隔离）
   见 SKILL.md「怎么扩展」。
 
+- **面板快照窗口**：`plugin-news.json` 默认只铺最近 **7 天**（`radar.py` 的
+  `PANEL_WINDOW_DAYS`，可用 `news --days N` 覆盖）；SQLite 仍保留 30 天历史，
+  调大窗口即可看到，不用重抓。
+
 ## 边界
 
 资讯只接零密钥 RSS/Atom，需要 key 的信源类型（X 搜索、公众号、网页选择器等）不做；
