@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.7';
+    const BUILD_TAG = 'v0.18.9';
 
     function groupColor(name) {
       let h = 0;
@@ -167,11 +167,13 @@ window.__ModuleLoader__.load({
 .ain-search-clear:hover { color:var(--dsw-alias-color-foreground); background:var(--dsw-alias-color-border); }
 .ain-search-count { flex:0 0 auto; font-size:12px; color:var(--dsw-alias-color-primary); font-weight:600;
   padding:2px 4px; white-space:nowrap; }
-.ain-top { position:fixed; right:26px; bottom:26px; z-index:60; width:42px; height:42px;
+.ain-top { position:fixed; right:26px; bottom:26px; z-index:500; width:42px; height:42px;
   display:flex; align-items:center; justify-content:center; border-radius:50%;
   border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
   color:var(--dsw-alias-label-primary); font-size:18px; line-height:1; cursor:pointer;
-  box-shadow:0 4px 14px rgba(0,0,0,.14); transition:transform .15s, box-shadow .15s, opacity .15s; }
+  opacity:.55; box-shadow:0 4px 14px rgba(0,0,0,.14);
+  transition:transform .15s, box-shadow .15s, opacity .15s; }
+.ain-top.on { opacity:1; }
 .ain-top:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.2);
   border-color:var(--dsw-alias-color-primary); color:var(--dsw-alias-color-primary); }
 .ain-top:active { transform:translateY(0); }
@@ -689,14 +691,33 @@ window.__ModuleLoader__.load({
         return () => window.removeEventListener('keydown', onKey);
       }, [searchEl]);
 
-      // 回到顶部：监听容器滚动位置，超过 400px 时显示悬浮按钮
+      // 回到顶部：向上收集所有可滚动祖先（真实滚动容器未必是 .ain-wrap），任一超阈值即显示
       useEffect(() => {
         if (!scrollEl) return undefined;
-        const onScroll = () => setShowTop(scrollEl.scrollTop > 400);
-        scrollEl.addEventListener('scroll', onScroll, { passive: true });
+        const nodes = [];
+        let p = scrollEl;
+        while (p && p !== document.body && p !== document.documentElement) {
+          let oy = '';
+          try { oy = getComputedStyle(p).overflowY; } catch (e) { oy = ''; }
+          if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') nodes.push(p);
+          p = p.parentElement;
+        }
+        nodes.push(window);
+        const readTop = () => {
+          let max = 0;
+          nodes.forEach((n) => {
+            const v = (n === window)
+              ? (window.scrollY || document.documentElement.scrollTop || 0)
+              : (n.scrollTop || 0);
+            if (v > max) max = v;
+          });
+          return max;
+        };
+        const onScroll = () => setShowTop(readTop() > 300);
+        nodes.forEach((n) => n.addEventListener('scroll', onScroll, { passive: true }));
         onScroll();
-        return () => scrollEl.removeEventListener('scroll', onScroll);
-      }, [scrollEl]);
+        return () => nodes.forEach((n) => n.removeEventListener('scroll', onScroll));
+      }, [scrollEl, data]);
 
       if (loading) return h('div', { className: 'ain-empty' }, '正在读取资讯缓存…');
       if (error) return h('div', { className: 'ain-wrap' },
@@ -1151,17 +1172,7 @@ window.__ModuleLoader__.load({
                         h('span', { className: 'ain-log-level' }, e.level || 'info'),
                         h('span', { className: 'ain-log-ts' }, (e.ts || '').replace('T', ' ').slice(0, 19))),
                       h('div', { className: 'ain-log-msg' }, e.message),
-                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))),
-
-        // 回到顶部悬浮按钮（滚动 400px 后出现）
-        showTop && h('button', {
-          className: 'ain-top', title: '回到顶部', 'aria-label': '回到顶部',
-          onClick: () => {
-            if (!scrollEl) return;
-            if (scrollEl.scrollTo) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
-            else scrollEl.scrollTop = 0;
-          },
-        }, '↑'));
+                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))));
       } catch (e) {
         __out = h('div', { className: 'ain-wrap' },
           h('div', { className: 'ain-err', style: { whiteSpace: 'pre-wrap' } },
@@ -1171,7 +1182,26 @@ window.__ModuleLoader__.load({
         __out = h('div', { className: 'ain-wrap' },
           h('div', { className: 'ain-err' }, '资讯渲染返回空值：' + String(__out)));
       }
-      return __out;
+      // 回到顶部：作为 .ain-wrap 的兄弟节点渲染，避免被滚动容器的 overflow/transform 裁切
+      const topBtn = h('button', {
+        className: 'ain-top' + (showTop ? ' on' : ''),
+        title: '回到顶部', 'aria-label': '回到顶部',
+        onClick: () => {
+          if (!scrollEl) return;
+          let p = scrollEl;
+          while (p && p !== document.body && p !== document.documentElement) {
+            if ((p.scrollTop || 0) > 0) {
+              if (p.scrollTo) p.scrollTo({ top: 0, behavior: 'smooth' }); else p.scrollTop = 0;
+            }
+            p = p.parentElement;
+          }
+          if (window.scrollY > 0) {
+            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+          }
+        },
+      }, '↑');
+      // display:contents 包裹层不参与布局，保证 .ain-wrap 仍是外层的 flex 子项
+      return h('div', { className: 'ain-frag', style: { display: 'contents' } }, __out, topBtn);
     }
 
     // 极简单列 Markdown → HTML（仅周报用，输入来自本地生成的可信文本，仍做转义）
