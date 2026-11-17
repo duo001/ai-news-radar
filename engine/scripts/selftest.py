@@ -722,6 +722,12 @@ def test_client_hooks():
         local_only = (re.search(rf"const\s+{helper}\s*=", masonry) is not None
                       or re.search(rf"const\s+{helper}\s*=", listsec) is not None)
         check(defined and not local_only, f"前端：共享 helper {helper} 有组件/模块级定义")
+    # 坑 53 回归：分组计数口径必须一致——「全部」chip 曾用 news.length（未过滤全量），
+    # 而分组计数来自 searchedPool（已按时间范围+搜索过滤），切到「今日」时总数与分项对不上
+    check(re.search(r"全部 \$\{searchedPool\.length\}", src) is not None,
+          "前端：分组「全部」计数用 searchedPool，与各分组同口径")
+    check("`全部 ${news.length}`" not in src,
+          "前端：分组「全部」不得使用未过滤的 news.length")
 
 
 def main():
