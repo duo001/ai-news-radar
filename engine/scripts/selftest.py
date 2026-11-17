@@ -622,6 +622,39 @@ def test_backup():
         backup.DATA = orig_data
 
 
+def test_news_persistence_mixed_types():
+    """坑 49 回归：RSS(datetime) 与采集器(ISO 字符串) 混批时，写库判定不能只看第一条。"""
+    import datetime as _dt
+    import radar
+    tz = _dt.timezone.utc
+    dt_obj = _dt.datetime(2026, 11, 16, 10, 0, tzinfo=tz)
+    mixed = [
+        {"link": "https://h/1", "title": "采集器条目（字符串）", "published": dt_obj.isoformat(),
+         "source_id": "hn"},
+        {"link": "https://r/2", "title": "RSS 条目（datetime）", "published": dt_obj,
+         "source_id": "tomshardware"},
+        {"link": "https://r/3", "title": "无时间条目", "published": None, "source_id": "x"},
+    ]
+    ser = radar._serialize_news(mixed)
+    check(all(isinstance(e["published"], str) for e in ser if e["published"]),
+          "序列化：混批后所有非空 published 都是字符串")
+    check(ser[1]["published"] == dt_obj.isoformat(), "序列化：datetime 正确 ISO 化")
+    check(ser[2]["published"] is None, "序列化：None 保持 None 不报错")
+    # 写库判定：批次中存在 datetime 即应全量写入（旧逻辑只看第一条会漏写 RSS）
+    has_datetime = any(not isinstance(e.get("published"), str) for e in mixed)
+    check(has_datetime is True, "写库判定：混批识别出 datetime 条目，不会漏写 RSS")
+    all_str = [{"link": "a", "published": "2026-11-16T10:00:00+00:00"}]
+    check(not any(not isinstance(e.get("published"), str) for e in all_str),
+          "写库判定：纯字符串批次不误触发全量写")
+    # 坑 50：IncompleteRead 必须在 fetch_one 的网络异常元组里（否则整轮采集崩掉）
+    import inspect
+    import http.client as _hc
+    src_text = inspect.getsource(__import__("feeds").fetch_one)
+    check("http.client.IncompleteRead" in src_text
+          and issubclass(_hc.IncompleteRead, Exception),
+          "采集：IncompleteRead 被显式捕获并回退缓存，不中断整轮采集")
+
+
 def test_client_hooks():
     """静态扫描 plugin/client.js：Hook 不得出现在条件 return 之后（白屏根因回归测试，坑 48）。
 
@@ -1187,8 +1220,9 @@ def main():
     test_netcfg()
     test_backup()
 
-    print("[21] 前端 Hooks 规则与错误日志设施（防白屏回归）")
+    print("[21] 前端 Hooks 规则、错误日志与混批持久化（防白屏/防漏写回归）")
     test_client_hooks()
+    test_news_persistence_mixed_types()
     print("\n全部自测通过 ✅")
 
 

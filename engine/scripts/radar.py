@@ -77,10 +77,17 @@ def _drop_flagged_noise(entries, log=None):
 
 
 def _serialize_news(entries):
-    """把 feeds 的 datetime 转成 ISO 字符串，便于 JSON 落盘。"""
+    """把 feeds 的 datetime 转成 ISO 字符串，便于 JSON 落盘。
+
+    结构化采集器（collectors）的 published 已是 ISO 字符串，原样保留；
+    None 与缺失值统一成 None，不能对字符串调 isoformat（坑 49 配套修复）。
+    """
     out = []
     for e in entries:
-        out.append({**e, "published": e["published"].isoformat() if e.get("published") else None})
+        pub = e.get("published")
+        if hasattr(pub, "isoformat"):
+            pub = pub.isoformat()
+        out.append({**e, "published": pub})
     return out
 
 
@@ -649,10 +656,12 @@ def cmd_news(args):
     news_trans = i18n.load_news_store()
 
     # ---- SQLite 持久化 ----
-    # RSS 直读 DB（离线有数据）时跳过，避免重复 ISO 化；结构化采集器的新条目
-    # 即使在离线模式（读本地缓存）也要入库，单独序列化写入。
-    need_write = bool(entries) and not isinstance(entries[0].get("published"), str)
-    if need_write:
+    # RSS/Atom 条目带 datetime 对象（需 ISO 化后入库）；结构化采集器（HN/OpenRouter）
+    # 带 ISO 字符串。不能只看 entries[0]：合并后第一条若恰好是字符串条目，
+    # 会让整批 RSS 的 datetime 条目被误判「无需写库」而永久丢条目（坑 49）。
+    # 只要批次里存在 datetime 条目就全量序列化写入（_serialize_news 对字符串原样保留）。
+    has_datetime = any(not isinstance(e.get("published"), str) for e in entries)
+    if has_datetime:
         db.upsert_news(_serialize_news(entries))
     elif col_entries:
         db.upsert_news(_serialize_news(col_entries))

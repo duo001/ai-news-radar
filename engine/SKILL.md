@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.18.0
+version: 0.18.1
 description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -176,6 +176,7 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - **术语归一化（v0.17，`scripts/glossary.py`）**：transmart 机翻把 Agent 译成「代理」、Token 译成「令牌/代币/标记」、Prompt 译成「提示」，与行业习惯不符。术语表在后处理阶段统一：代理→智能体、token→Token（仅 LLM 语境）、prompt→提示词。每条规则都带原文语境护栏（原文须含 agent/token/prompt 词根）与组合词护栏（代理服务器/代理人/代理商不替换），且**只改 `source=auto:*` 的机翻条目，人工精译一字不动**。新翻译在 `auto_translate_news` 落库前即时归一化，历史数据用 `translate --news --normalize` 回填（幂等，重复跑不改动）
 - **资产备份（v0.17，`scripts/backup.py` + `radar.py backup`）**：翻译库、已读状态、关注词、源体检与发现结果、news.db 都在 .gitignore 里，误删即不可再生。`backup` 打成 `data/backups/backup-YYYYMMDD-HHMMSS.zip`（内含 `backup-manifest.json` 记录纳管/缺失清单），`--restore` 按原路径原子写回并做 zip-slip 路径校验；cache 与时间戳报告不纳入（可重抓/可重渲染）
 - **前端错误日志与错误边界（v0.18，`plugin/client.js` + `index.js`）**：面板原先只有红条提示，渲染崩溃会整页白屏且无痕迹。现前端环形缓冲（50 条，3s 防抖批量上报）捕获 window error / unhandledrejection / 接口失败，经 `POST /logs` 落盘引擎目录 `data/client-errors.log`（JSONL，500 行环形截断，字段白名单，不入库）；`ErrorBoundary` 兜底渲染崩溃显示「重试渲染/刷新页面」而非白屏。面板工具栏「🐞 日志」可查看/复制/清空（`GET /logs?limit=`、`DELETE /logs`）。另修白屏根因：周报 `useCallback` 原位于条件 return 之后违反 Hooks 规则；selftest [21] 静态扫描 client.js 组件函数，条件 return 后出现 Hook 即失败，防回归
+- **资讯写库丢条目修复（v0.18.1，`radar.py` + `feeds.py`）**：RSS 条目带 datetime、结构化采集器（HN/OpenRouter）带 ISO 字符串，旧写库判定只看批次第一条类型，第一条是字符串时整批 RSS 被跳过（现象：采集日志显示抓到 N 条但 news.db 该源 0 行，Tom's Hardware/Latent Space 实测中招）。改为「批次中存在 datetime 即全量写」，`_serialize_news` 同时兼容 datetime/字符串/None。另捕获 `http.client.IncompleteRead`（非 URLError 子类），连接中断按普通网络失败回退缓存，不再让整轮采集崩掉
 
 ### 工作台形态：@local/ai-news-panel 插件
 

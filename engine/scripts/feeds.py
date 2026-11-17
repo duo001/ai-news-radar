@@ -11,6 +11,7 @@
 import gzip
 import json
 import re
+import http.client
 import urllib.request
 import netcfg
 import urllib.error
@@ -331,8 +332,10 @@ def fetch_one(source, offline=False):
             except FeedError:
                 # 解析失败保留原始缓存（下次离线还能用）
                 cache.write_text(xml_text, encoding="utf-8")
-        except (urllib.error.URLError, TimeoutError, OSError) as e:
+        except (urllib.error.URLError, TimeoutError, OSError,
+                http.client.IncompleteRead) as e:
             # 回退缓存：新鲜缓存优先，过期也接受
+            # IncompleteRead（连接中途断开）不是 URLError 子类，需显式捕获（坑 50）
             if cache.exists():
                 xml_text = cache.read_text(encoding="utf-8", errors="replace")
             else:
