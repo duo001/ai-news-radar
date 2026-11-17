@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.3-build20261117';
+    const BUILD_TAG = 'v0.18.5';
 
     function groupColor(name) {
       let h = 0;
@@ -126,7 +126,7 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.ain-wrap { display:flex; flex-direction:column; height:100%; padding:16px 20px 24px; overflow:auto;
+.ain-wrap { display:flex; flex-direction:column; flex:1 1 auto; min-height:0; height:auto; padding:16px 20px 24px; overflow-y:auto;
   color:var(--dsw-alias-label-primary); background:var(--dsw-alias-bg-base); font-size:13px; }
 .ain-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
 .ain-title { font-size:16px; font-weight:600; margin:0; }
@@ -758,7 +758,9 @@ window.__ModuleLoader__.load({
         ? Math.round((progress.done / progress.total) * 100)
         : 0;
 
-      return h('div', { className: 'ain-wrap' },
+      let __out;
+      try {
+      __out = h('div', { className: 'ain-wrap' },
         h('div', { className: 'ain-head' },
           h('h2', { className: 'ain-title', 'data-build': BUILD_TAG }, `AI 资讯 · ${BUILD_TAG}`),
           h('span', { className: 'ain-meta', style: { margin: 0 } }, `${news.length} 条`),
@@ -1100,7 +1102,17 @@ window.__ModuleLoader__.load({
                         h('span', { className: 'ain-log-level' }, e.level || 'info'),
                         h('span', { className: 'ain-log-ts' }, (e.ts || '').replace('T', ' ').slice(0, 19))),
                       h('div', { className: 'ain-log-msg' }, e.message),
-                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))))
+                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))));
+      } catch (e) {
+        __out = h('div', { className: 'ain-wrap' },
+          h('div', { className: 'ain-err', style: { whiteSpace: 'pre-wrap' } },
+            '资讯渲染异常：' + ((e && e.message) || e)));
+      }
+      if (!__out) {
+        __out = h('div', { className: 'ain-wrap' },
+          h('div', { className: 'ain-err' }, '资讯渲染返回空值：' + String(__out)));
+      }
+      return __out;
     }
 
     // 极简单列 Markdown → HTML（仅周报用，输入来自本地生成的可信文本，仍做转义）
