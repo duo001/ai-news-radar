@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.5';
+    const BUILD_TAG = 'v0.18.6';
 
     function groupColor(name) {
       let h = 0;
@@ -149,14 +149,24 @@ window.__ModuleLoader__.load({
 .ain-progress .fill { height:100%; background:var(--dsw-alias-brand-primary); transition:width .3s ease; }
 .ain-progress .current { color:var(--dsw-alias-label-secondary); font-size:11px; }
 .ain-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
-.ain-search { position:relative; display:flex; align-items:center; gap:8px; margin-bottom:14px; }
-.ain-search-input { flex:1; padding:8px 74px 8px 12px; border-radius:8px; border:1px solid var(--dsw-alias-color-border);
-  background:var(--dsw-alias-color-background); color:var(--dsw-alias-color-foreground); font-size:13px; outline:none; }
-.ain-search-input:focus { border-color:var(--dsw-alias-color-primary); }
-.ain-search-clear { position:absolute; right:64px; border:none; background:none; color:var(--dsw-alias-label-secondary);
-  cursor:pointer; font-size:14px; padding:2px 6px; border-radius:4px; }
+.ain-search { position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:10px;
+  margin:0 0 12px; padding:7px 10px; border-radius:12px;
+  background:var(--dsw-alias-bg-layer-1); border:1px solid var(--dsw-alias-border-l2);
+  box-shadow:0 2px 10px rgba(0,0,0,.06); transition:border-color .15s, box-shadow .15s; }
+.ain-search:focus-within { border-color:var(--dsw-alias-color-primary);
+  box-shadow:0 0 0 3px rgba(22,119,255,.14), 0 2px 10px rgba(0,0,0,.08); }
+.ain-search-icon { font-size:14px; opacity:.7; flex:0 0 auto; }
+.ain-search-input { flex:1; min-width:0; padding:9px 4px; border:none; background:transparent;
+  color:var(--dsw-alias-color-foreground); font-size:14px; outline:none; }
+.ain-search-input::placeholder { color:var(--dsw-alias-label-secondary); opacity:.85; }
+.ain-search-kbd { flex:0 0 auto; font-size:11px; line-height:1; padding:4px 7px; border-radius:6px;
+  border:1px solid var(--dsw-alias-border-l2); color:var(--dsw-alias-label-secondary);
+  background:var(--dsw-alias-bg-base); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+.ain-search-clear { flex:0 0 auto; border:none; background:none; color:var(--dsw-alias-label-secondary);
+  cursor:pointer; font-size:14px; line-height:1; padding:4px 7px; border-radius:6px; }
 .ain-search-clear:hover { color:var(--dsw-alias-color-foreground); background:var(--dsw-alias-color-border); }
-.ain-search-count { position:absolute; right:12px; font-size:12px; color:var(--dsw-alias-label-secondary); min-width:36px; text-align:right; }
+.ain-search-count { flex:0 0 auto; font-size:12px; color:var(--dsw-alias-color-primary); font-weight:600;
+  padding:2px 4px; white-space:nowrap; }
 .ain-tag { padding:3px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:12px;
   font-size:11px; background:var(--dsw-alias-bg-layer-1); cursor:pointer;
   color:var(--dsw-alias-label-secondary); }
@@ -468,6 +478,7 @@ window.__ModuleLoader__.load({
   const [viewMode, setViewMode] = useState('list');   // 'list' | 'masonry'
   const [timeRange, setTimeRange] = useState('all');   // 'all' | 'today' | '3d' | '7d'
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
+      const [searchEl, setSearchEl] = useState(null);    // 搜索框 DOM，用于 Ctrl+K 聚焦
       const [activeTopic, setActiveTopic] = useState(''); // 领域主题筛选（enrich.topics，空=不限）
       const [activeWatch, setActiveWatch] = useState(''); // 关键词关注筛选（watch_hits，空=不限）
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
@@ -653,6 +664,21 @@ window.__ModuleLoader__.load({
         }
       }, []);
 
+      // 搜索快捷键：Ctrl/⌘+K 聚焦搜索框，Esc 清空并失焦
+      useEffect(() => {
+        const onKey = (e) => {
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+            e.preventDefault();
+            if (searchEl) { searchEl.focus(); searchEl.select(); }
+          } else if (e.key === 'Escape' && searchEl && document.activeElement === searchEl) {
+            setQuery('');
+            searchEl.blur();
+          }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [searchEl]);
+
       if (loading) return h('div', { className: 'ain-empty' }, '正在读取资讯缓存…');
       if (error) return h('div', { className: 'ain-wrap' },
         h('div', { className: 'ain-err' }, `加载失败：${error}`),
@@ -820,16 +846,20 @@ window.__ModuleLoader__.load({
           }, logBusy ? '读取中…' : '🐞 日志')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
+          h('span', { className: 'ain-search-icon', 'aria-hidden': 'true' }, '🔍'),
           h('input', {
             type: 'text', className: 'ain-search-input',
-            placeholder: '搜索标题、摘要或中文译文…',
+            placeholder: '搜索标题 / 摘要 / 中文译文…',
             value: query,
+            ref: setSearchEl,
             onInput: (e) => setQuery(e.target.value),
           }),
-          query && h('button', {
-            className: 'ain-search-clear', title: '清空',
-            onClick: () => setQuery(''),
-          }, '✕'),
+          query
+            ? h('button', {
+              className: 'ain-search-clear', title: '清空（Esc）',
+              onClick: () => setQuery(''),
+            }, '✕')
+            : h('span', { className: 'ain-search-kbd', title: '快捷键：Ctrl/⌘ + K' }, 'Ctrl K'),
           query && h('span', { className: 'ain-search-count' }, `${filtered.length} 条`)),
         data && data.generated_at && h('div', { className: 'ain-meta' },
           `更新于 ${new Date(data.generated_at).toLocaleString()}`),
