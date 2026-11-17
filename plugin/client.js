@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.6';
+    const BUILD_TAG = 'v0.18.7';
 
     function groupColor(name) {
       let h = 0;
@@ -167,6 +167,14 @@ window.__ModuleLoader__.load({
 .ain-search-clear:hover { color:var(--dsw-alias-color-foreground); background:var(--dsw-alias-color-border); }
 .ain-search-count { flex:0 0 auto; font-size:12px; color:var(--dsw-alias-color-primary); font-weight:600;
   padding:2px 4px; white-space:nowrap; }
+.ain-top { position:fixed; right:26px; bottom:26px; z-index:60; width:42px; height:42px;
+  display:flex; align-items:center; justify-content:center; border-radius:50%;
+  border:1px solid var(--dsw-alias-border-l2); background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary); font-size:18px; line-height:1; cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.14); transition:transform .15s, box-shadow .15s, opacity .15s; }
+.ain-top:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.2);
+  border-color:var(--dsw-alias-color-primary); color:var(--dsw-alias-color-primary); }
+.ain-top:active { transform:translateY(0); }
 .ain-tag { padding:3px 10px; border:1px solid var(--dsw-alias-border-l2); border-radius:12px;
   font-size:11px; background:var(--dsw-alias-bg-layer-1); cursor:pointer;
   color:var(--dsw-alias-label-secondary); }
@@ -479,6 +487,8 @@ window.__ModuleLoader__.load({
   const [timeRange, setTimeRange] = useState('all');   // 'all' | 'today' | '3d' | '7d'
       const [query, setQuery] = useState('');            // 搜索关键字（过滤标题/摘要，含中文译文）
       const [searchEl, setSearchEl] = useState(null);    // 搜索框 DOM，用于 Ctrl+K 聚焦
+      const [scrollEl, setScrollEl] = useState(null);    // 滚动容器 DOM
+      const [showTop, setShowTop] = useState(false);      // 是否显示「回到顶部」
       const [activeTopic, setActiveTopic] = useState(''); // 领域主题筛选（enrich.topics，空=不限）
       const [activeWatch, setActiveWatch] = useState(''); // 关键词关注筛选（watch_hits，空=不限）
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
@@ -679,6 +689,15 @@ window.__ModuleLoader__.load({
         return () => window.removeEventListener('keydown', onKey);
       }, [searchEl]);
 
+      // 回到顶部：监听容器滚动位置，超过 400px 时显示悬浮按钮
+      useEffect(() => {
+        if (!scrollEl) return undefined;
+        const onScroll = () => setShowTop(scrollEl.scrollTop > 400);
+        scrollEl.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+        return () => scrollEl.removeEventListener('scroll', onScroll);
+      }, [scrollEl]);
+
       if (loading) return h('div', { className: 'ain-empty' }, '正在读取资讯缓存…');
       if (error) return h('div', { className: 'ain-wrap' },
         h('div', { className: 'ain-err' }, `加载失败：${error}`),
@@ -786,7 +805,7 @@ window.__ModuleLoader__.load({
 
       let __out;
       try {
-      __out = h('div', { className: 'ain-wrap' },
+      __out = h('div', { className: 'ain-wrap', ref: setScrollEl },
         h('div', { className: 'ain-head' },
           h('h2', { className: 'ain-title', 'data-build': BUILD_TAG }, `AI 资讯 · ${BUILD_TAG}`),
           h('span', { className: 'ain-meta', style: { margin: 0 } }, `${news.length} 条`),
@@ -1132,7 +1151,17 @@ window.__ModuleLoader__.load({
                         h('span', { className: 'ain-log-level' }, e.level || 'info'),
                         h('span', { className: 'ain-log-ts' }, (e.ts || '').replace('T', ' ').slice(0, 19))),
                       h('div', { className: 'ain-log-msg' }, e.message),
-                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))));
+                      e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))),
+
+        // 回到顶部悬浮按钮（滚动 400px 后出现）
+        showTop && h('button', {
+          className: 'ain-top', title: '回到顶部', 'aria-label': '回到顶部',
+          onClick: () => {
+            if (!scrollEl) return;
+            if (scrollEl.scrollTo) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+            else scrollEl.scrollTop = 0;
+          },
+        }, '↑'));
       } catch (e) {
         __out = h('div', { className: 'ain-wrap' },
           h('div', { className: 'ain-err', style: { whiteSpace: 'pre-wrap' } },
