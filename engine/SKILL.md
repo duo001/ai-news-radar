@@ -129,7 +129,7 @@ python3 radar.py render                      # 用最新 GitHub run 数据+翻�
 参考 AIHOT 的信源清单，只接**零密钥**的 RSS 2.0 / Atom，不做需要付费 key 的 X 搜索、公众号、网页选择器等类型。配置在 `data/sources/feeds.json`（纯数据，不改代码即可加源）：
 
 - 每条信源字段：`id/name/url/kind(rss|atom)/group/tags/enabled`，停用源保留配置并写 `disabled_reason`
-- **13 个分组**（按内容属性归类，不再是笼统的「其他」）：厂商官方(15)、科技媒体(16)、技术博客(29，框架/公司工程博客，非 AI 垂直)、开源生态(13)、AI 媒体(12，机器之心/量子位/新智元/我爱计算机视觉/听说了吗等)、个人与社区(12)、学术研究(10)、开发者社区(10)、播客(6)、DSH 生态(2)、创业与商业(2)、安全(2)、硬件与芯片(2)。当前 **131 源 / 125 启用 / 6 停用**（Import AI、Google Research、Mistral、HuggingFace 本网络超时；BBC Technology、Gizmodo 连续失败被健康检查自动停用，恢复后把 `enabled` 改回 true 即可）
+- **13 个分组**（按内容属性归类，不再是笼统的「其他」）：厂商官方(15)、科技媒体(16)、技术博客(29，框架/公司工程博客，非 AI 垂直)、开源生态(13)、AI 媒体(12，机器之心/量子位/新智元/我爱计算机视觉/听说了吗等)、个人与社区(12)、学术研究(10)、开发者社区(10)、播客(6)、DSH 生态(2)、创业与商业(2)、安全(2)、硬件与芯片(2)。当前 **524 源 / 520 启用 / 4 停用**（Import AI、Google Research、Mistral、HuggingFace 本网络超时；BBC Technology、Gizmodo 连续失败被健康检查自动停用，恢复后把 `enabled` 改回 true 即可）
 - **加一个源**：在 `sources` 数组追加一条，`kind` 按 feed 类型填 rss 或 atom，`doctor` 会自动纳入体检和重复 id 检查
 - 采集特性：纯标准库（urllib + xml.etree + ThreadPoolExecutor）零新依赖；**默认 8 路并发**（`--workers 1` 退回串行），单源容错（一个挂只记进 `news_failures` 不影响其他），网络失败自动回退 `data/cache/feeds/` 缓存（过期也用，保证离线出报告）；自动处理强制 gzip 压缩（见 references 第 18 条）；每源默认取前 8 条，全部按时间倒序
 - **摘要清洗**：先整块移除 `<style>/<script>` 与 HTML/CSS 注释，再去标签（实测 GitHub Blog 的字体版权、MS Research 的 `.yt-consent` 样式会在去标签后变成文本噪声，见 references 第 20 条）；正文中合法的 `{...}` 代码片段不误伤

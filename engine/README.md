@@ -88,7 +88,7 @@ ai-git-radar/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图
 └── data/
-    ├── sources/feeds.json       # ★ RSS/Atom 信源表（128 源/13 组，加源只改这里）
+    ├── sources/feeds.json       # ★ RSS/Atom 信源表（524 源/14 组，加源只改这里）
     ├── sources/collectors.json  # ★ 结构化采集器配置（2 启用 / 4 预置停用）
     ├── sources/watch.json       # ★ 关键词关注列表（watch_hits，改完即生效）
     ├── cache/feeds/             # feed XML 缓存（3h TTL，离线回退）
