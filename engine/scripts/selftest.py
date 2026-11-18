@@ -4,6 +4,8 @@
     python3 selftest.py
 全部断言通过退出码 0，可作为改完规则后的回归检查。
 """
+import json
+
 import detectors
 import registry
 import scorer
@@ -663,6 +665,78 @@ def test_news_persistence_mixed_types():
           "快照：DB 保留期不短于面板窗口（历史不丢）")
 
 
+def test_news_translate_payload():
+    """坑 55 回归：翻译载荷必须合并所有资讯文件并把译文重打到条目级 zh 字段。
+
+    历史 bug：① _news_payload_for_translate 只取「条目最多的一份」，当旧
+    news-*.json 比 plugin-news.json 多时，面板新条目根本不进翻译视野，机翻
+    「处理 0 条」；② _rerender_news 只回灌顶层 news_translations 字典，不重打
+    条目级 zh_title，而面板卡片读的是条目级字段，导致「库里有译文、面板仍英文」。
+    """
+    import tempfile
+    import pathlib as _pl
+    import radar
+
+    tmpdir = _pl.Path(tempfile.mkdtemp())
+    orig_data = radar.DATA
+    radar.DATA = tmpdir
+    try:
+        # 旧的 news-*.json：条目更多，但不含面板新条目（link-c / link-d）
+        old_payload = {"news": [
+            {"link": "https://a/1", "title": "Old Alpha", "source_name": "Old Feed",
+             "published": "2026-11-01T00:00:00+00:00"},
+            {"link": "https://a/2", "title": "Old Beta", "source_name": "Old Feed",
+             "published": "2026-11-01T00:00:00+00:00"},
+            {"link": "https://shared/9", "title": "Shared from old file",
+             "source_name": "Old Feed", "published": "2026-11-01T00:00:00+00:00"},
+        ]}
+        # 面板真相源 plugin-news.json：条目更少但带独有新条目
+        plugin_payload = {"news": [
+            {"link": "https://shared/9", "title": "Shared from plugin",
+             "source_name": "Panel Feed", "published": "2026-11-10T00:00:00+00:00"},
+            {"link": "https://c/3", "title": "New Gamma on panel",
+             "source_name": "Panel Feed", "published": "2026-11-10T00:00:00+00:00"},
+        ]}
+        (tmpdir / "news-20261101-0000.json").write_text(
+            json.dumps(old_payload, ensure_ascii=False), encoding="utf-8")
+        (tmpdir / "plugin-news.json").write_text(
+            json.dumps(plugin_payload, ensure_ascii=False), encoding="utf-8")
+
+        merged = radar._news_payload_for_translate()
+        links = [e["link"] for e in merged["news"]]
+        # 并集覆盖：面板独有新条目必须在翻译视野内（旧实现选 old 文件会漏掉）
+        check("https://c/3" in links, "翻译载荷：并集包含 plugin-news 独有新条目")
+        check(len(links) == len(set(links)) == 4, "翻译载荷：按 link 去重合并（4 条唯一）")
+        # plugin-news.json 在前，共享 link 以面板版本为准
+        shared = next(e for e in merged["news"] if e["link"] == "https://shared/9")
+        check(shared["title"] == "Shared from plugin",
+              "翻译载荷：plugin-news 优先于旧 news-*.json")
+
+        # ② _rerender_news 必须把译文重打到条目级 zh_title/zh_summary
+        # i18n 有独立的 NEWS_STORE 常量，一并指到临时目录，避免污染真实翻译库
+        import i18n
+        orig_news_store = i18n.NEWS_STORE
+        i18n.NEWS_STORE = tmpdir / "news_translations.json"
+        try:
+            store = {"https://c/3": {"zh_title": "面板上的新伽马",
+                                     "zh_summary": "中文摘要", "source": "auto:transmart"}}
+            i18n.save_news_store(store)
+            rerender_payload = {"news": plugin_payload["news"], "news_translations": store}
+            radar._rerender_news(rerender_payload)
+            saved = json.loads((tmpdir / "plugin-news.json").read_text(encoding="utf-8"))
+            gamma = next(e for e in saved["news"] if e["link"] == "https://c/3")
+            check(gamma.get("zh_title") == "面板上的新伽马",
+                  "重渲染：译文重打到条目级 zh_title（面板卡片读这个字段）")
+            check(gamma.get("zh_summary") == "中文摘要", "重渲染：zh_summary 同步重打")
+            check(isinstance(saved.get("news_translations"), dict)
+                  and "https://c/3" in saved["news_translations"],
+                  "重渲染：顶层 news_translations 字典仍回灌（报告渲染用）")
+        finally:
+            i18n.NEWS_STORE = orig_news_store
+    finally:
+        radar.DATA = orig_data
+
+
 def test_client_hooks():
     """静态扫描 plugin/client.js：Hook 不得出现在条件 return 之后（白屏根因回归测试，坑 48）。
 
@@ -1254,6 +1328,9 @@ def main():
     print("[21] 前端 Hooks 规则、错误日志与混批持久化（防白屏/防漏写回归）")
     test_client_hooks()
     test_news_persistence_mixed_types()
+
+    print("[22] 资讯翻译载荷合并与条目级译文回灌（防机翻处理 0 条/面板不显示）")
+    test_news_translate_payload()
     print("\n全部自测通过 ✅")
 
 

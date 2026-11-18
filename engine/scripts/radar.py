@@ -517,14 +517,29 @@ def _rerender_news(payload):
     _log(f"资讯报告已刷新: {md_path} / {html_path}")
     # 工作台插件读的是固定路径的 plugin-news.json，翻译后要同步一次，
     # 否则面板刷新也看不到新译文（Data flow: translate → plugin-news.json → 面板）
+    #
+    # 注意：面板卡片读的是**条目级** zh_title/zh_summary，不是顶层 news_translations
+    # 字典（那是报告渲染用的）。只回灌字典会出现「库里有译文、面板仍显示英文」，
+    # 因此这里必须按 link 把译文重打到每个条目上。
     plugin_json = DATA / "plugin-news.json"
     if plugin_json.exists():
         try:
             saved = json.loads(plugin_json.read_text(encoding="utf-8"))
-            saved["news_translations"] = payload["news_translations"]
+            translations = payload["news_translations"]
+            saved["news_translations"] = translations
+            stamped = 0
+            for item in saved.get("news", []):
+                tr = translations.get(item.get("link", ""))
+                if not tr:
+                    continue
+                if tr.get("zh_title"):
+                    item["zh_title"] = tr["zh_title"]
+                if tr.get("zh_summary"):
+                    item["zh_summary"] = tr["zh_summary"]
+                stamped += 1
             plugin_json.write_text(
                 json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
-            _log("插件固定文件已同步译文")
+            _log(f"插件固定文件已同步译文（重打 {stamped} 条条目级 zh 字段）")
         except (json.JSONDecodeError, OSError) as exc:
             _log(f"插件固定文件同步失败：{exc}")
 
@@ -569,11 +584,16 @@ def _latest_news():
 
 
 def _news_payload_for_translate():
-    """翻译/重渲染要基于**最全的一份**资讯，而不是最新的 news-*.json。
+    """翻译/重渲染要覆盖**所有现存条目**，按 link 合并多份资讯文件。
 
-    插件日常走 `news --quiet --json-out plugin-news.json`（不产 news-*.json），
-    会导致最新 news-*.json 停在很久以前、漏掉新增条目，机翻因此「处理 0 条」。
-    优先用 plugin-news.json（条目通常最新最全），回退最新 news-*.json。
+    历史教训（坑 31）：插件日常走 `news --quiet --json-out plugin-news.json`
+    （不产 news-*.json），早期实现「只取条目最多的一份」会在 news-*.json 与
+    plugin-news.json 条目集不同（窗口滚动、信源增删后两者只有部分重叠）时，
+    选中不含面板新条目的旧文件，导致机翻「处理 0 条」、面板英文标题永远不译。
+
+    现做法：plugin-news.json（面板真相源）在前，其余 news-*.json 按时间在后，
+    按 link 去重合并——前面的条目优先保留，后面只补前面没有的 link。
+    合并后的载荷同时用于待译抽取与重渲染，保证「面板能看到的都在翻译视野内」。
     """
     plugin_json = DATA / "plugin-news.json"
     candidates = []
@@ -583,17 +603,27 @@ def _news_payload_for_translate():
     sample = DATA / "sample-news.json"
     if sample.exists():
         candidates.append(sample)
-    best, best_n = None, -1
+
+    merged_news, seen_links = [], set()
+    base_payload = None
     for p in candidates:
         try:
-            n = len(json.loads(p.read_text(encoding="utf-8")).get("news", []))
+            payload = json.loads(p.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
-        if n > best_n:
-            best, best_n = p, n
-    if best is None:
+        if base_payload is None:
+            base_payload = payload
+        for e in payload.get("news", []):
+            link = e.get("link", "")
+            if not link or link in seen_links:
+                continue
+            seen_links.add(link)
+            merged_news.append(e)
+
+    if base_payload is None:
         raise FileNotFoundError("data/ 下没有可翻译的资讯文件，先跑一次 news")
-    return json.loads(best.read_text(encoding="utf-8"))
+    base_payload["news"] = merged_news
+    return base_payload
 
 
 def cmd_news(args):

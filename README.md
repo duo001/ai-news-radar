@@ -4,12 +4,12 @@ AI 资讯工作台：并发聚合 **526 个零密钥 RSS/Atom 信源** + 2 个�
 去重、套用中文翻译，既可作为 **DSH 工作台插件**常驻侧边栏，也可作为 **Agent Skill /
 命令行工具**独立运行。
 
-当前版本 **v0.18.11**。
+当前版本 **v0.18.12**。
 
 [![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
 
 > CI 为**手动触发**（Actions 页 → selftest → Run workflow），在 Python 3.10 / 3.12 上跑
-> **21 组 / 261 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
+> **22 组 / 267 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
 > `python engine/scripts/selftest.py` 即可，push 不触发 run。
 
 ## 能力概览
@@ -35,7 +35,7 @@ ai-news-radar/
 │   ├── NOTES-legacy.md           # GitHub 项目雷达（封存）说明
 │   ├── scripts/                  # radar.py 入口 + 20 个脚本（采集/分类/翻译/运维）
 │   ├── categories/               # GitHub 项目雷达的声明式类目（legacy）
-│   ├── references/               # 数据源与已知坑（54 条）、评分方法论
+│   ├── references/               # 数据源与已知坑（55 条）、评分方法论
 │   ├── tools/                    # lightpanda 截图（可选，二进制不入库）
 │   └── data/
 │       ├── sources/feeds.json         # ★ 资讯信源表（526 条，加源只改这里）
@@ -116,7 +116,7 @@ python3 radar.py discover --remote                     # AIHOT 远程开源清�
 python3 radar.py discover --list                       # 看待审队列
 python3 radar.py discover --accept id1,id2             # 采纳 → 写回 feeds.json
 
-python3 selftest.py                        # 离线回归（21 组 / 261 断言）
+python3 selftest.py                        # 离线回归（22 组 / 267 断言）
 ```
 
 Python 3.8+，资讯采集与翻译纯标准库。GitHub 项目雷达（legacy）额外需要
@@ -211,7 +211,7 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 - **人工决策边界**：自动发现只进待审队列，绝不静默改写配置
 - **面板即真相源**：插件与 CLI 共用同一份 `feeds.json` 与同一个引擎，无第二套逻辑
 - **零 JS 的 HTML 报告**：自包含单文件、内联 CSS，浏览器直接打开，适合存档/发群
-- **离线可测**：21 组断言全部离线（含前端 Hook 顺序静态扫描），CI 与本地同源
+- **离线可测**：22 组断言全部离线（含前端 Hook 顺序静态扫描），CI 与本地同源
 - **错误可见**：前端错误边界 + 环形日志落盘 `client-errors.log`，渲染异常不再无声白屏
 
 ## 环境要求
@@ -230,7 +230,7 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 
 - `engine/SKILL.md` —— Skill 执行契约、命令全集、扩展与检测口径
 - `engine/README.md` —— 引擎模块详解、目录与数据流
-- `engine/references/数据源与已知坑.md` —— 54 条踩坑记录（抓取改版、限额、分类误判、白屏排查等）
+- `engine/references/数据源与已知坑.md` —— 55 条踩坑记录（抓取改版、限额、分类误判、白屏排查等）
 - `engine/references/评分方法论.md` —— legacy 六维评分口径
 - `plugin/README.md` —— 插件架构与 HTTP 契约
 
