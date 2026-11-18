@@ -154,7 +154,8 @@ feeds.json ──fetch──> feed XML 缓存(3h) ──parse──> entries
 
 当前 **526 条配置 / 521 启用 / 5 停用 / 15 个分组**（厂商官方、科技媒体、技术博客、
 开源生态、AI 媒体、个人与社区、学术研究、开发者社区、播客、DSH 生态、创业与商业、
-安全、硬件与芯片、模型优惠与福利、其他）。
+安全、硬件与芯片、模型优惠与福利、其他）。其中「其他」400 条多为批量采纳的自动发现源，
+未归组不影响采集，按需在面板里归位即可。
 
 **不想手维护**就用自动发现：每个候选都**真实下载并解析一遍**（RSS 2.0 / Atom 都试），
 记条目数与最近更新时间；下载失败判 `invalid` 不入队；URL 归一化去重；WordPress 评论
@@ -178,7 +179,7 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 
 ## 关键词关注与周报
 
-`data/sources/watch.json` 声明关注词（默认示例：mcp / agent / claude code / 免费额度）：
+`engine/data/sources/watch.json` 声明关注词（默认示例：mcp / agent / claude code / 免费额度）：
 
 ```json
 { "keywords": [ { "term": "mcp", "enabled": true } ] }
