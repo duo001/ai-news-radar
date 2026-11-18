@@ -3,13 +3,16 @@
 把 `ai-git-radar` 的 RSS/Atom 资讯能力做成 DSH 工作台常驻面板：侧边栏点开即看，
 信源在面板里可视化增删/启停，不需要手编 JSON、不需要跑命令。
 
+三个页签：**资讯**（浏览/筛选/搜索/已读/关注词/周报）、**发现**（四条通道找新源 +
+待审队列）、**信源维护**（CRUD）。
+
 ## 架构：插件是外壳，Python 是引擎
 
 ```
 ┌───────────────────────────── Web GUI（浏览器）────────────────────────────┐
 │ client.js（Client 半，React 无 JSX）                                        │
 │  · sidebar.panellist 图标（id=ai-news, order=15）                          │
-│  · main 面板（key=ai-news）：资讯 tab + 信源维护 tab                        │
+│  · main 面板（key=ai-news）：资讯 / 发现 / 信源维护 三页签                  │
 │  · 全局 fetch('/ai-news/*') 同源调用                                        │
 └──────────────────────────────┬────────────────────────────────────────────┘
                                │ HTTP（同源，webServer 路由）
@@ -21,8 +24,8 @@
 └──────────────────────────────┬────────────────────────────────────────────┘
                                │ subprocess
 ┌──────────────────────────────▼──────────── Python（零改动复用）────────────┐
-│ ../ai-git-radar/scripts/radar.py + feeds.py + i18n.py ...                  │
-│  data/sources/feeds.json（18 源）、data/cache/feeds/、news_translations.json│
+│ ../engine/scripts/radar.py + feeds.py + i18n.py + enrich.py ...            │
+│  data/sources/feeds.json（526 源）、data/news.db（30 天）、plugin-news.json │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,6 +83,13 @@
   不打印分组摘要（radar.py 的 news 子命令新增参数），插件数据文件固定为 `data/plugin-news.json`。
 - 样式只用 `--dsw-alias-*` 主题 token，深浅色自动跟随；动态文本不经 React 转义的地方
   （href 等）均来自引擎 JSON，无手写 HTML 拼接。
+- **容器高度是白屏头号嫌疑**：`.ain-wrap` 若 `height:100%` + `overflow:auto`，在宿主插槽内
+  会塌陷为 0 并把内容整体裁掉——DOM 完整、零异常、错误日志为空。正确写法是
+  `flex:1 1 auto; min-height:0; height:auto; overflow-y:auto`。
+- **滚动容器不是 `.ain-wrap`**：回到顶部按钮必须向上遍历所有 `overflow:auto|scroll` 祖先
+  + window，任一 `scrollTop > 300` 才点亮；只监听自身会永远不亮。
+- **计数口径必须统一**：分组计数与「全部」都要基于筛选后的同一数组（`searchedPool`），
+  混用 `news.length` 会出现「全部 1014 / 各分组相加 997」。
 
 ## 安装/重载
 
@@ -94,9 +104,11 @@ Client 半改动需要浏览器刷新页面；Host 半改动禁用/启用插件�
 
 ## 与 skill 的分工
 
-| | skill（ai-git-radar） | 本插件（ai-news-panel） |
+| | skill（engine） | 本插件（ai-news-panel） |
 |---|---|---|
 | 形态 | Agent 工作流，命令行触发 | 常驻工作台面板 |
-| 信源维护 | 编 feeds.json | 面板表单 |
-| 深度能力 | GitHub 项目雷达（封存）、评分、翻译流水线、md/html 报告 | 资讯浏览 + 信源 CRUD + 一键刷新 |
-| 数据 | 同一套 feeds.json / 缓存 / 翻译库，两边共享 | 同左 |
+| 信源维护 | 编 feeds.json / `discover` 子命令 | 面板表单 + 发现页签 |
+| 深度能力 | 采集/分类/去重/机翻/周报/体检/备份/导出 md+html，legacy GitHub 雷达 | 资讯浏览与筛选、已读、关注词、周报、代理、错误日志 |
+| 数据 | 同一套 feeds.json / news.db / 翻译库，两边共享 | 同左 |
+
+插件只做「呈现 + 编排」，所有重活都在引擎里；因此面板能力上限 = 引擎能力上限。

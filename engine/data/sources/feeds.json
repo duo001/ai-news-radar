@@ -2572,7 +2572,8 @@
       "kind": "rss",
       "group": "其他",
       "tags": [],
-      "enabled": true
+      "enabled": false,
+      "disabled_reason": "健康检查自动停用：连续 3 次失败（最近错误：XML 解析失败: not well-formed (invalid token): line 1, column 0）"
     },
     {
       "id": "blog-gadore-top-feed-xml",

@@ -1,14 +1,14 @@
 ---
 name: ai-git-radar
 version: 0.18.11
-description: AI 资讯雷达。主力能力是并发聚合零密钥 RSS/Atom AI 资讯信源（厂商官方/开源生态/学术研究/科技媒体/个人社区五组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 20 秒采完全部信源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../ai-news-panel）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
+description: AI 资讯雷达。主力能力是并发聚合 526 个零密钥 RSS/Atom 资讯信源（厂商官方/科技媒体/技术博客/开源生态/AI 媒体/学术研究等 15 组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 7 分钟采完 500+ 源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../plugin，monorepo 内）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
 # AI 资讯雷达（ai-git-radar）
 
 ## 它做什么
 
-**v0.6 起主力是 RSS/Atom 资讯**：并发拉取一批零密钥 AI 资讯信源，清洗、分组、套用中文翻译，产出**可直接浏览器打开或转发的 HTML + Markdown + JSON 三份资讯速递**。相比封存的 GitHub 项目拉取（匿名受限流影响、单轮常需数分钟），资讯采集 8 路并发约 20 秒完成，零 API 额度。
+**v0.6 起主力是 RSS/Atom 资讯**：并发拉取一批零密钥 AI 资讯信源，清洗、分组、套用中文翻译，产出**可直接浏览器打开或转发的 HTML + Markdown + JSON 三份资讯速递**。相比封存的 GitHub 项目拉取（匿名受限流影响、单轮常需数分钟），资讯采集 8 路并发、500+ 源约 7 分钟完成，零 API 额度。
 
 GitHub 项目扫描能力**封存但保留可用**（`run` 子命令，下文标 legacy），需要时仍能跑四类目分类与六维评分。
 
@@ -129,7 +129,7 @@ python3 radar.py render                      # 用最新 GitHub run 数据+翻�
 参考 AIHOT 的信源清单，只接**零密钥**的 RSS 2.0 / Atom，不做需要付费 key 的 X 搜索、公众号、网页选择器等类型。配置在 `data/sources/feeds.json`（纯数据，不改代码即可加源）：
 
 - 每条信源字段：`id/name/url/kind(rss|atom)/group/tags/enabled`，停用源保留配置并写 `disabled_reason`
-- **13 个分组**（按内容属性归类，不再是笼统的「其他」）：厂商官方(15)、科技媒体(16)、技术博客(29，框架/公司工程博客，非 AI 垂直)、开源生态(13)、AI 媒体(12，机器之心/量子位/新智元/我爱计算机视觉/听说了吗等)、个人与社区(12)、学术研究(10)、开发者社区(10)、播客(6)、DSH 生态(2)、创业与商业(2)、安全(2)、硬件与芯片(2)。当前 **524 源 / 520 启用 / 4 停用**（Import AI、Google Research、Mistral、HuggingFace 本网络超时；BBC Technology、Gizmodo 连续失败被健康检查自动停用，恢复后把 `enabled` 改回 true 即可）
+- **15 个分组**（按内容属性归类）：其他(400，批量采纳的发现源默认落此组，建议按需归位)、技术博客(29，框架/公司工程博客，非 AI 垂直)、厂商官方(15)、个人与社区(14)、科技媒体(14)、开源生态(13)、AI 媒体(12，机器之心/量子位/新智元/我爱计算机视觉/听说了吗等)、学术研究(10)、播客(6)、开发者社区(5)、DSH 生态(2)、创业与商业(2)、安全(2)、硬件与芯片(1)、模型优惠与福利(1，LINUX DO 福利雷达)。当前 **526 源 / 521 启用 / 5 停用**（Import AI、Google Research、Mistral、HuggingFace 本网络超时；BBC Technology、Gizmodo 连续失败被健康检查自动停用，恢复后把 `enabled` 改回 true 即可）
 - **加一个源**：在 `sources` 数组追加一条，`kind` 按 feed 类型填 rss 或 atom，`doctor` 会自动纳入体检和重复 id 检查
 - 采集特性：纯标准库（urllib + xml.etree + ThreadPoolExecutor）零新依赖；**默认 8 路并发**（`--workers 1` 退回串行），单源容错（一个挂只记进 `news_failures` 不影响其他），网络失败自动回退 `data/cache/feeds/` 缓存（过期也用，保证离线出报告）；自动处理强制 gzip 压缩（见 references 第 18 条）；每源默认取前 8 条，全部按时间倒序
 - **摘要清洗**：先整块移除 `<style>/<script>` 与 HTML/CSS 注释，再去标签（实测 GitHub Blog 的字体版权、MS Research 的 `.yt-consent` 样式会在去标签后变成文本噪声，见 references 第 20 条）；正文中合法的 `{...}` 代码片段不误伤

@@ -1,8 +1,9 @@
-# ai-git-radar · AI 资讯雷达
+# ai-git-radar · AI 资讯雷达（引擎）
 
-**v0.6 起主力是 RSS/Atom 资讯**：并发聚合 14 个零密钥 AI 资讯信源，清洗、分组、
-套用中文翻译，一次产出 Markdown + 自包含单文件 HTML + JSON 三份资讯速递。
-8 路并发约 20 秒采完，零 API 额度。
+**v0.6 起主力是 RSS/Atom 资讯**：并发聚合 **526 个零密钥 AI 资讯信源** + 2 个结构化
+采集器（OpenRouter 免费模型 / Hacker News），清洗、分组、近似去重、套用中文翻译，
+一次产出 Markdown + 自包含单文件 HTML + JSON 三份资讯速递。8 路并发约 7 分钟采完
+500+ 源，零 API 额度。当前版本 **v0.18.11**。
 
 GitHub 项目扫描能力（分类 + 六维情报评分）**封存为 legacy 保留可用**（`run` 子命令）。
 参考「夜秣 git 副业雷达」的架构骨架，重写了类目体系与评分模型。
@@ -18,9 +19,13 @@ python3 radar.py doctor               # 自检（含资讯信源与缓存体检�
 python3 radar.py news                 # 并发拉信源，出 data/news-*.{md,html,json} 并套中文翻译
 python3 radar.py news --offline       # 只用缓存，离线出资讯（亚秒级）
 python3 radar.py news --only 学术研究   # 按信源 id 或分组过滤
-python3 radar.py translate --news --todo    # 导出英文标题待译清单
+python3 radar.py news --days 14       # 面板快照窗口临时放宽（默认 7 天）
+python3 radar.py news --per-source 20 # 每源最多取多少条（默认 8）
+python3 radar.py translate --news --auto    # ★ 免费机翻批量英译中，直接入库（零 key）
+python3 radar.py translate --news --todo    # 导出英文标题待译清单（人工精译用）
 # 填好 zh_title / zh_summary 后：
 python3 radar.py translate --news --apply   # 合并进 news_translations.json（已译不覆盖）并重渲染
+python3 radar.py translate --news --normalize  # 术语归一化历史机翻（Agent/Token/Prompt）
 
 # —— 已封存 legacy：GitHub 项目 ——
 python3 radar.py run --quick          # 只看今日 trending
@@ -30,12 +35,12 @@ python3 radar.py translate --todo     # 仓库简介翻译（另一套翻译库�
 python3 radar.py source-check         # 信源体检：静默源/故障源/health 孤儿（v0.15，纯本地）
 python3 radar.py weekly               # 近 7 天周报 Markdown（含关注专区、主题分区、体检附榜）
 python3 radar.py backup               # 资产备份：翻译库/已读/关注词/DB → data/backups/*.zip
-python3 selftest.py                   # 离线回归测试（21 组断言）
+python3 selftest.py                   # 离线回归测试（21 组 / 261 条断言）
 ```
 
 每次 `news` 产出三份同一数据的文件：`data/news-*.html`（自包含单文件，浏览器直接打开）、
 `data/news-*.md`、`data/news-*.json`；资讯翻译库 `data/news_translations.json` 按文章链接
-建 key。示例批次（42 条、100% 中文化）固化为 `data/sample-news.{md,html,json}`。
+建 key。示例批次固化为 `data/sample-news.{md,html,json}`。
 信源配置在 `data/sources/feeds.json`（加源只改数据不改代码），feed 缓存在
 `data/cache/feeds/`（3h TTL，单源失败自动容错并回退缓存）。
 
@@ -83,17 +88,17 @@ ai-git-radar/
 │   ├── report.py            # Markdown 渲染（资讯 + legacy 项目，中文优先、主归属常量）
 │   ├── html_report.py       # 自包含单文件 HTML（内联 CSS、零 JS、资讯/项目两套渲染）
 │   └── selftest.py          # 离线回归（21 组，含前端 Hooks 静态扫描）
-├── references/              # 设计文档（数据源坑 30 条、评分方法论）
+├── references/              # 设计文档（数据源坑 54 条、评分方法论）
 ├── tools/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图
 └── data/
-    ├── sources/feeds.json       # ★ RSS/Atom 信源表（524 源/14 组，加源只改这里）
+    ├── sources/feeds.json       # ★ RSS/Atom 信源表（526 源/15 组，加源只改这里）
     ├── sources/collectors.json  # ★ 结构化采集器配置（2 启用 / 4 预置停用）
     ├── sources/watch.json       # ★ 关键词关注列表（watch_hits，改完即生效）
     ├── cache/feeds/             # feed XML 缓存（3h TTL，离线回退）
     ├── cache/collectors/        # 采集器 JSON 缓存（3h TTL）
-    ├── sample-news.*        # 资讯示例批次（42 条，100% 中文翻译）
+    ├── sample-news.*        # 资讯示例批次（md/html/json）
     ├── news_translations.json  # 资讯翻译库（按文章 link）
     └── sample-report.* / sample-run.json / translations.json  # legacy GitHub 示例
 ```
@@ -112,7 +117,11 @@ ai-git-radar/
 
 ## 边界
 
-资讯只接零密钥 RSS/Atom，需要 key 的信源类型（X 搜索、公众号、网页选择器等）不做；
-翻译由 Agent/人工完成、脚本不内置机翻也不引入翻译 API 密钥，已译内容跨天复用；
-legacy GitHub 通路只做 README 静态分析、不实测第三方 API；HTML 报告零 JS、纯内联 CSS；
-暂无跨天查重、定时任务（后续版本规划，见 SKILL.md）。
+资讯只接零密钥 RSS/Atom 与零 key 结构化 API，需要 key 的信源类型（X 搜索、公众号、
+网页选择器等）不做；翻译双通道——免费机翻（腾讯 transmart，零 key）与人工精译，
+已译内容跨天复用且机翻不覆盖精译；legacy GitHub 通路只做 README 静态分析、不实测
+第三方 API；HTML 报告零 JS、纯内联 CSS。
+
+运行时数据（DB / 翻译库 / 已读 / 关注词 / 代理 / 备份 / 错误日志）全部 gitignore，
+仓库只存代码、配置与示例。定时采集由外部调度器（如 DSH 定时任务）驱动，脚本本身
+不常驻。
