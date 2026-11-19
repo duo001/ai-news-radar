@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.13';
+    const BUILD_TAG = 'v0.18.14';
 
     function groupColor(name) {
       let h = 0;
@@ -96,6 +96,37 @@ window.__ModuleLoader__.load({
 
     // 卡片上的近似去重徽章（🔗 另有 N 家）；模块级纯渲染，masonry/list 两视图共用
     // 曾只在 masonry 分支定义、list 分支引用导致 ReferenceError 整面板崩（坑 51）
+    // 原文语种标记：标题后面挂一个【英文】【日文】小标签。
+    // 判据与引擎 i18n.detect_lang 保持一致——先看假名/谚文（它们与汉字混排时
+    // 仍能唯一标识日/韩），再看到汉字才判中文；中文原文不挂标签（没必要）。
+    const LANG_KANA = /[\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f]/;
+    const LANG_HANGUL = /[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]/;
+    const LANG_CJK = /[\u4e00-\u9fff]/;
+    const LANG_CYRILLIC = /[\u0400-\u04ff]/;
+    const LANG_LATIN = /[A-Za-z\u00c0-\u024f]/;
+    const LANG_LABEL = { ja: '日文', ko: '韩文', en: '英文', ru: '俄文' };
+
+    function langOf(text) {
+      const t = String(text || '');
+      if (!t) return '';
+      if (LANG_KANA.test(t)) return 'ja';
+      if (LANG_HANGUL.test(t)) return 'ko';
+      if (LANG_CJK.test(t)) return '';        // 原文即中文，不标注
+      if (LANG_CYRILLIC.test(t)) return 'ru';
+      if (LANG_LATIN.test(t)) return 'en';
+      return '';
+    }
+
+    // 模块级纯渲染：两个视图共用（避免 v0.18.2 那种局部定义导致的 ReferenceError）
+    function langBadge(it) {
+      const lang = langOf(it && it.title);
+      if (!lang) return null;
+      return h('span', {
+        className: `ain-lang ain-lang-${lang}`,
+        title: '原文语言',
+      }, LANG_LABEL[lang] || '外文');
+    }
+
     function dupBadgeOf(it) {
       if (it._kind === 'deal' || !(it.dup_count > 0)) return null;
       return h('span', {
@@ -357,6 +388,14 @@ window.__ModuleLoader__.load({
   display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
 .ain-item .s { color:var(--dsw-alias-label-secondary); font-size:12px; margin-top:5px;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.5; }
+/* 原文语种小标签：跟在标题末尾，随标题折行，不参与 line-clamp 计算 */
+.ain-item .ain-lang { display:inline-block; margin-left:6px; padding:0 5px; border-radius:4px;
+  font-size:10.5px; font-weight:500; line-height:15px; vertical-align:1px; white-space:nowrap;
+  border:1px solid transparent; -webkit-box-decoration-break:clone; }
+.ain-lang-en { color:#0958d9; background:rgba(9,88,217,.10); border-color:rgba(9,88,217,.22); }
+.ain-lang-ja { color:#d4380d; background:rgba(212,56,13,.10); border-color:rgba(212,56,13,.22); }
+.ain-lang-ko { color:#08979c; background:rgba(8,151,156,.10); border-color:rgba(8,151,156,.22); }
+.ain-lang-ru { color:#531dab; background:rgba(83,29,171,.10); border-color:rgba(83,29,171,.22); }
 .ain-item .m { display:flex; gap:8px; margin-top:6px; font-size:11px; color:var(--dsw-alias-label-secondary); }
 .ain-err { color:var(--dsw-alias-state-error-primary); font-size:12px; margin:8px 0; }
 .ain-empty { color:var(--dsw-alias-label-secondary); padding:30px 0; text-align:center; }
@@ -1080,7 +1119,7 @@ window.__ModuleLoader__.load({
                   isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
                   formBadge, dupBadge, obtainTxt,
                   h('span', { className: 'ain-time' }, fmtDate(it.published))),
-                h('div', { className: 't' }, title),
+                h('div', { className: 't' }, title, langBadge(it)),
                 showOrig && h('div', { className: 'orig' }, it.title),
                 summary && h('div', { className: 's' }, summary),
                 isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
@@ -1118,7 +1157,7 @@ window.__ModuleLoader__.load({
                     isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
                     formBadge, dupBadge, obtainTxt,
                     h('span', { className: 'ain-time' }, fmtDate(it.published))),
-                  h('div', { className: 't' }, title),
+                  h('div', { className: 't' }, title, langBadge(it)),
                   showOrig && h('div', { className: 'orig' }, it.title),
                   summary && h('div', { className: 's' }, summary),
                   isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },

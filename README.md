@@ -4,12 +4,12 @@ AI 资讯工作台：并发聚合 **526 个零密钥 RSS/Atom 信源** + 2 个�
 去重、套用中文翻译，既可作为 **DSH 工作台插件**常驻侧边栏，也可作为 **Agent Skill /
 命令行工具**独立运行。
 
-当前版本 **v0.18.13**。
+当前版本 **v0.18.14**。
 
 [![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
 
 > CI 为**手动触发**（Actions 页 → selftest → Run workflow），在 Python 3.10 / 3.12 上跑
-> **22 组 / 278 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
+> **22 组 / 284 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
 > `python engine/scripts/selftest.py` 即可，push 不触发 run。
 
 ## 能力概览
@@ -116,7 +116,7 @@ python3 radar.py discover --remote                     # AIHOT 远程开源清�
 python3 radar.py discover --list                       # 看待审队列
 python3 radar.py discover --accept id1,id2             # 采纳 → 写回 feeds.json
 
-python3 selftest.py                        # 离线回归（22 组 / 278 断言）
+python3 selftest.py                        # 离线回归（22 组 / 284 断言）
 ```
 
 Python 3.8+，资讯采集与翻译纯标准库。GitHub 项目雷达（legacy）额外需要
@@ -172,6 +172,11 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 |---|---|---|
 | 免费机翻 | `translate --news --auto` 或面板「自动翻译」 | 腾讯 transmart，**零 API key**；按字符预算切片，超限退避；失败降级 MyMemory |
 | 人工精译 | `translate --news --todo` → 填表 → `--apply` | 按文章 link 建库，**机翻不覆盖精译**，跨天复用 |
+
+**英文、日文、韩文以及其它非中文语种一律译成中文**。语种判定按「先假名/谚文、后汉字」
+的顺序（`i18n.detect_lang`），因为汉字中日共用——只看「有没有汉字」会把日文标题
+误判成「已是中文」而整条漏掉；纯数字/纯 emoji 不送翻译。卡片标题后的
+`【英文】【日文】` 小标签标明原文语种。
 
 落库前会走**术语归一化**（`glossary.py`）：agent→智能体、token→Token、prompt→提示词，
 均带语境护栏（例如「代理人/代理服务」不会被改写，`prompt` 不会误伤「提示灯/提示框」），

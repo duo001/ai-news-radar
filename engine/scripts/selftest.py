@@ -797,7 +797,8 @@ def test_client_hooks():
     # 不能只在某一个 map 回调里局部声明——防止再出作用域漏定义（坑 51）
     masonry = src[src.index("filtered.map((it) => {"):src.index("orderedGroups.map")]
     listsec = src[src.index("items.map((it) => {"):]
-    for helper in ("chipsOf", "watchOf", "groupColor", "srcInitial", "fmtDate", "dupBadgeOf"):
+    for helper in ("chipsOf", "watchOf", "groupColor", "srcInitial", "fmtDate", "dupBadgeOf",
+                   "langOf", "langBadge"):
         defined = (re.search(rf"function\s+{helper}\s*\(", src) is not None
                    or re.search(rf"const\s+{helper}\s*=", src) is not None)
         # 局部 map 回调里的 const 不算（那正是坑 51 的形态）：要求定义出现在两个回调区间之外
@@ -810,6 +811,15 @@ def test_client_hooks():
           "前端：分组「全部」计数用 searchedPool，与各分组同口径")
     check("`全部 ${news.length}`" not in src,
           "前端：分组「全部」不得使用未过滤的 news.length")
+    # v0.18.14：标题后挂原文语种标签（【英文】【日文】），两视图都要有
+    check(src.count("title, langBadge(it)") == 2,
+          "前端：瀑布流与列表两视图标题都挂语种标签")
+    check("function langOf(" in src and "function langBadge(" in src,
+          "前端：语种判定与标签渲染为模块级函数（两视图共用）")
+    check("LANG_KANA" in src and "LANG_HANGUL" in src,
+          "前端：语种判定先假名谚文后汉字（与引擎 i18n 同判据）")
+    check(".ain-lang-ja" in src and ".ain-lang-en" in src,
+          "前端：语种标签按语言着色")
 
 
 def main():
