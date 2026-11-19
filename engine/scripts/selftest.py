@@ -812,8 +812,10 @@ def test_client_hooks():
     check("`全部 ${news.length}`" not in src,
           "前端：分组「全部」不得使用未过滤的 news.length")
     # v0.18.14：标题后挂原文语种标签（【英文】【日文】），两视图都要有
-    check(src.count("title, langBadge(it)") == 2,
-          "前端：瀑布流与列表两视图标题都挂语种标签")
+    check(src.count("className: 'ain-trow'") == 2 and src.count("langBadge(it)") == 3,
+          "前端：瀑布流与列表两视图标题行都挂语种标签")
+    check(".ain-trow .t" in src and "flex:1 1 auto" in src,
+          "前端：标题行 flex 布局，标签不被 line-clamp 裁掉")
     check("function langOf(" in src and "function langBadge(" in src,
           "前端：语种判定与标签渲染为模块级函数（两视图共用）")
     check("LANG_KANA" in src and "LANG_HANGUL" in src,

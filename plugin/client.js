@@ -388,10 +388,14 @@ window.__ModuleLoader__.load({
   display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
 .ain-item .s { color:var(--dsw-alias-label-secondary); font-size:12px; margin-top:5px;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.5; }
-/* 原文语种小标签：跟在标题末尾，随标题折行，不参与 line-clamp 计算 */
-.ain-item .ain-lang { display:inline-block; margin-left:6px; padding:0 5px; border-radius:4px;
-  font-size:10.5px; font-weight:500; line-height:15px; vertical-align:1px; white-space:nowrap;
-  border:1px solid transparent; -webkit-box-decoration-break:clone; }
+/* 标题行：标题占满剩余宽度（两行截断），语种标签固定在行尾不参与截断计算。
+   早期把标签内联进标题文本，标题占满两行时标签会被 line-clamp 裁掉。 */
+.ain-item .ain-trow { display:flex; align-items:baseline; gap:6px; }
+.ain-item .ain-trow .t { flex:1 1 auto; min-width:0; }
+.ain-item .ain-trow .ain-lang { flex:0 0 auto; align-self:flex-start; margin-top:1px; }
+.ain-item .ain-lang { display:inline-block; padding:0 5px; border-radius:4px;
+  font-size:10.5px; font-weight:500; line-height:15px; white-space:nowrap;
+  border:1px solid transparent; }
 .ain-lang-en { color:#0958d9; background:rgba(9,88,217,.10); border-color:rgba(9,88,217,.22); }
 .ain-lang-ja { color:#d4380d; background:rgba(212,56,13,.10); border-color:rgba(212,56,13,.22); }
 .ain-lang-ko { color:#08979c; background:rgba(8,151,156,.10); border-color:rgba(8,151,156,.22); }
@@ -1119,7 +1123,9 @@ window.__ModuleLoader__.load({
                   isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
                   formBadge, dupBadge, obtainTxt,
                   h('span', { className: 'ain-time' }, fmtDate(it.published))),
-                h('div', { className: 't' }, title, langBadge(it)),
+                h('div', { className: 'ain-trow' },
+                  h('span', { className: 't' }, title),
+                  langBadge(it)),
                 showOrig && h('div', { className: 'orig' }, it.title),
                 summary && h('div', { className: 's' }, summary),
                 isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
@@ -1157,7 +1163,9 @@ window.__ModuleLoader__.load({
                     isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
                     formBadge, dupBadge, obtainTxt,
                     h('span', { className: 'ain-time' }, fmtDate(it.published))),
-                  h('div', { className: 't' }, title, langBadge(it)),
+                  h('div', { className: 'ain-trow' },
+                    h('span', { className: 't' }, title),
+                    langBadge(it)),
                   showOrig && h('div', { className: 'orig' }, it.title),
                   summary && h('div', { className: 's' }, summary),
                   isDeal && (it._tags || []).length > 0 && h('div', { className: 'ain-deal-tags' },
