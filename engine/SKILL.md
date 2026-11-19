@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.18.12
+version: 0.18.13
 description: AI 资讯雷达。主力能力是并发聚合 526 个零密钥 RSS/Atom 资讯信源（厂商官方/科技媒体/技术博客/开源生态/AI 媒体/学术研究等 15 组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 7 分钟采完 500+ 源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../plugin，monorepo 内）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -179,6 +179,7 @@ RSS/Atom 之外，借鉴 freebie-radar 的多类型采集器思路，接入**零
 - **资讯面板白屏修复（v0.18.5，`plugin/client.js`）**：`.ain-wrap` 的 `height:100%` + `overflow:auto` 在宿主插槽内高度塌陷成 0，把整块资讯内容裁掉——DOM 完整、无异常、ErrorBoundary 与错误日志都无记录，表现为「只有资讯 tab 纯白」。改为 `flex:1 1 auto; min-height:0; height:auto; overflow-y:auto`。同时把数据态整段渲染包进 try/catch + 空值兜底，任何渲染异常/空返回都转成可见红字，不再无声白屏；坑文档第 52 条记排查顺序
 - **资讯写库丢条目修复（v0.18.1，`radar.py` + `feeds.py`）**：RSS 条目带 datetime、结构化采集器（HN/OpenRouter）带 ISO 字符串，旧写库判定只看批次第一条类型，第一条是字符串时整批 RSS 被跳过（现象：采集日志显示抓到 N 条但 news.db 该源 0 行，Tom's Hardware/Latent Space 实测中招）。改为「批次中存在 datetime 即全量写」，`_serialize_news` 同时兼容 datetime/字符串/None。另捕获 `http.client.IncompleteRead`（非 URLError 子类），连接中断按普通网络失败回退缓存，不再让整轮采集崩掉
 - **列表视图崩溃修复（v0.18.2，`plugin/client.js`）**：去重徽章 `dupBadge` 只在瀑布流分支局部定义、分组列表分支引用了未定义标识符，切列表视图即 `ReferenceError: dupBadge is not defined`（错误日志 `/logs` 正是靠 v0.18 的日志系统抓到现场）。提成模块级 `dupBadgeOf(it)` 两视图共用；selftest [21] 增加结构断言，强制两视图共享 helper 必须有组件/模块级定义，`node --check` 查不出的作用域错误由它兜住
+- **多语种翻译（v0.18.13，`i18n.py` + `mt.py`）**：早期中文检测只测 CJK 汉字，日文标题因含汉字被判「已是中文」而整体跳过（韩文汉字混排同理）；同时 transmart 源语言写死 `en`，日文被当英文臆造翻译（实测「OpenAIが新しいモデルを発表」→「OpenAI新一代智能手表」）。现按「先假名/谚文、后汉字」判定语种（`i18n.detect_lang` / `is_chinese` / `needs_translation`），transmart 改用 `lang:auto`，MyMemory 兜底按语种给 `ja|zh-CN`/`ko|zh-CN`/`en|zh-CN`；英文、日文、韩文一律翻成中文，纯数字/纯 emoji 不送翻译。selftest [10] 增 13 条语种断言，坑文档第 56 条
 - **自动翻译失效修复（v0.18.12，`radar.py`）**：点「自动翻译」跑完却「处理 0 条」、面板始终英文，是两个独立 bug 叠加。① `_news_payload_for_translate()` 早期在 plugin-news.json + news-*.json 里选「条目最多的一份」，窗口滚动后旧 news-*.json 反而更长但不含面板新条目（实测两文件交集仅 1292/2544，332 条英文待译漏网）——改为按 link 并集合并所有候选文件、plugin-news.json 在前优先；② `_rerender_news()` 只回灌顶层 `news_translations` 字典（报告渲染用），但面板卡片读的是条目级 `zh_title/zh_summary`——同步时按 link 把译文重打到每个条目。修复后 330 条待译全部翻完，覆盖率待译归零；selftest 新增 [22] 组（临时目录构造新旧文件错位，回归并集合并与条目级回灌），坑文档第 55 条
 
 ### 工作台形态：@local/ai-news-panel 插件

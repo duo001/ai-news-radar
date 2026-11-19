@@ -937,6 +937,34 @@ def main():
               "已翻译内容不被二次 apply 覆盖")
         done, pending, native = i18n.coverage(sample["results"])
         check((done, pending, native) == (1, 0, 1), "覆盖率统计（已译/待译/原文中文）")
+        # 坑 56 回归：日文/韩文标题含汉字或纯假名，绝不能判成「已是中文」而跳过
+        check(i18n.detect_lang("OpenAIが新しいモデルを発表") == "ja", "语种：假名判日文")
+        check(i18n.detect_lang("新しいAI技術") == "ja", "语种：汉字+假名仍判日文")
+        check(i18n.detect_lang("인공지능 새 모델 발표") == "ko", "语种：谚文判韩文")
+        check(i18n.detect_lang("OpenAI 发布 GPT-5") == "zh", "语种：中文含英文名仍判中文")
+        check(i18n.needs_translation("OpenAIが新しいモデルを発表") is True,
+              "待译：日文标题必须进待译清单")
+        check(i18n.needs_translation("新しいAI技術") is True, "待译：纯日文汉字标题也不漏")
+        check(i18n.needs_translation("一个 AI 智能体框架") is False, "待译：中文标题跳过")
+        check(i18n.needs_translation("2026-11-19") is False, "待译：纯数字/符号不送翻译")
+        # 资讯待译清单：日文标题（含汉字）不能被当成中文漏掉
+        news_todo = i18n.build_news_todo([
+            {"link": "https://ja/1", "title": "OpenAIが新しいモデルを発表"},
+            {"link": "https://ja/2", "title": "新しいAI技術の発表"},
+            {"link": "https://zh/3", "title": "OpenAI 发布新模型"},
+            {"link": "https://en/4", "title": "OpenAI releases a new model"},
+        ])["items"]
+        got_links = {it["link"] for it in news_todo}
+        check(got_links == {"https://ja/1", "https://ja/2", "https://en/4"},
+              "资讯待译：日文两条与英文一条入列，中文跳过")
+        # 机翻通道源语言必须是 auto（写死 en 会把日文当英文臆造翻译）
+        import inspect
+        import mt
+        check('"lang": "auto"' in inspect.getsource(mt._transmart_one_batch),
+              "机翻：transmart 源语言为 auto（支持日/韩/英混排）")
+        check(mt._src_lang("OpenAIが新しいモデルを発表") == "ja"
+              and mt._src_lang("인공지능") == "ko",
+              "机翻：MyMemory 兜底按语种给 langpair")
     finally:
         i18n.STORE, i18n.TODO = old_store, old_todo
 

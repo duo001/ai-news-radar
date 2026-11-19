@@ -24,11 +24,61 @@ NEWS_STORE = DATA / "news_translations.json"
 NEWS_TODO = DATA / "todo_news_translate.json"
 
 _CJK_RE = re.compile(r"[一-鿿]")
+# 日文假名（平假名 U+3040-309F、片假名 U+30A0-30FF、半角片假名 U+FF66-FF9F）。
+# 汉字（CJK 表意）中日共用，光看「有没有汉字」分不出中日——这是早期把日文
+# 资讯误判成「已是中文」而跳过翻译的根因（v0.18.13，坑 56）。
+_KANA_RE = re.compile(r"[\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f]")
+# 韩文谚文（字母 U+1100-11FF、兼容字母 U+3130-318F、音节 U+AC00-D7AF）
+_HANGUL_RE = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
+# 「有可译内容」的最小判据：拉丁/西里尔/假名/谚文/汉字，纯符号或纯数字不送翻译
+_LETTER_RE = re.compile(r"[A-Za-z\u00c0-\u024f\u0400-\u04ff"
+                        r"\u3040-\u30ff\u1100-\u11ff\u3130-\u318f\uac00-\ud7af"
+                        r"\u4e00-\u9fff]")
+
+
+def detect_lang(text):
+    """粗粒度语种判定，只服务「要不要翻译」这一个决策：zh / ja / ko / en / other。
+
+    判据顺序很重要：先看假名、谚文（它们与汉字混排时仍能唯一标识日/韩），
+    再看到汉字才判中文。纯英文等拉丁文字判 en；纯符号数字判 other。
+    """
+    if not text:
+        return "other"
+    if _KANA_RE.search(text):
+        return "ja"
+    if _HANGUL_RE.search(text):
+        return "ko"
+    if _CJK_RE.search(text):
+        return "zh"
+    if re.search(r"[A-Za-z\u00c0-\u024f\u0400-\u04ff]", text):
+        return "en"
+    return "other"
+
+
+def is_chinese(text):
+    """是否已经是中文（汉字且无假名/谚文）。"""
+    return detect_lang(text) == "zh"
+
+
+def needs_translation(text):
+    """非空、不是中文、且含可译字符 → 需要翻成中文。
+
+    英文、日文、韩文以及其它语种一视同仁；纯数字/纯符号/纯 emoji 不送翻译。
+    注意：**不能**用「含汉字」当「已是中文」——日文大量使用汉字，会被整体漏掉。
+    """
+    t = (text or "").strip()
+    if not t or is_chinese(t):
+        return False
+    return bool(_LETTER_RE.search(t))
 
 
 def has_cjk(text):
-    """文本里是否已含中文字符（含中文的简介直接当已翻译，不进待译清单）。"""
-    return bool(text and _CJK_RE.search(text))
+    """兼容旧名（历史调用）：现在语义收窄为「是否已是中文」。
+
+    旧实现只测 CJK 表意区，日文标题因含汉字被误判为中文而跳过翻译，
+    改用 is_chinese/needs_translation 后不再有这个问题。
+    """
+    return is_chinese(text)
 
 
 def load_store():
@@ -70,7 +120,7 @@ def build_todo(results):
             continue
         seen.add(key)
         source = (repo.get("desc") or "").strip()
-        if not source or has_cjk(source):
+        if not needs_translation(source):
             continue
         items.append({"key": key, "repo": repo["full_name"],
                       "source": source, "zh": ""})
@@ -118,11 +168,11 @@ def coverage(results):
     for r in results:
         key = r["repo"]["full_name"].lower()
         desc = (r["repo"].get("desc") or "").strip()
-        if has_cjk(desc):
+        if is_chinese(desc):
             native += 1
         elif key in store:
             done += 1
-        elif desc:
+        elif needs_translation(desc):
             pending += 1
     return done, pending, native
 
@@ -184,7 +234,7 @@ def build_news_todo(entries):
                 "only_summary": True,
             })
             continue
-        if not title or has_cjk(title):
+        if not needs_translation(title):
             continue
         items.append({
             "key": link,
@@ -247,11 +297,11 @@ def news_coverage(entries):
         title = (e.get("title") or "").strip()
         if not title:
             continue
-        if has_cjk(title):
+        if is_chinese(title):
             native += 1
         elif link in store and store[link].get("zh_title"):
             done += 1
-        else:
+        elif needs_translation(title):
             pending += 1
     return done, pending, native
 

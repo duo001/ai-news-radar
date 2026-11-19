@@ -3,7 +3,7 @@
 **v0.6 起主力是 RSS/Atom 资讯**：并发聚合 **526 个零密钥 AI 资讯信源** + 2 个结构化
 采集器（OpenRouter 免费模型 / Hacker News），清洗、分组、近似去重、套用中文翻译，
 一次产出 Markdown + 自包含单文件 HTML + JSON 三份资讯速递。8 路并发约 7 分钟采完
-500+ 源，零 API 额度。当前版本 **v0.18.12**。
+500+ 源，零 API 额度。当前版本 **v0.18.13**。
 
 GitHub 项目扫描能力（分类 + 六维情报评分）**封存为 legacy 保留可用**（`run` 子命令）。
 参考「夜秣 git 副业雷达」的架构骨架，重写了类目体系与评分模型。
@@ -35,7 +35,7 @@ python3 radar.py translate --todo     # 仓库简介翻译（另一套翻译库�
 python3 radar.py source-check         # 信源体检：静默源/故障源/health 孤儿（v0.15，纯本地）
 python3 radar.py weekly               # 近 7 天周报 Markdown（含关注专区、主题分区、体检附榜）
 python3 radar.py backup               # 资产备份：翻译库/已读/关注词/DB → data/backups/*.zip
-python3 selftest.py                   # 离线回归测试（22 组 / 267 条断言）
+python3 selftest.py                   # 离线回归测试（22 组 / 278 条断言）
 ```
 
 每次 `news` 产出三份同一数据的文件：`data/news-*.html`（自包含单文件，浏览器直接打开）、
@@ -88,7 +88,7 @@ ai-git-radar/
 │   ├── report.py            # Markdown 渲染（资讯 + legacy 项目，中文优先、主归属常量）
 │   ├── html_report.py       # 自包含单文件 HTML（内联 CSS、零 JS、资讯/项目两套渲染）
 │   └── selftest.py          # 离线回归（22 组，含前端 Hooks 静态扫描）
-├── references/              # 设计文档（数据源坑 55 条、评分方法论）
+├── references/              # 设计文档（数据源坑 56 条、评分方法论）
 ├── tools/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图

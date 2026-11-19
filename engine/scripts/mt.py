@@ -15,11 +15,16 @@
 """
 
 import json
+import re
 import time
 import urllib.error
 import netcfg
 import urllib.parse
 import urllib.request
+
+# 假名 / 谚文：与 i18n.detect_lang 同判据，供 MyMemory 显式指定源语言
+_KANA_RE = re.compile(r"[\u3040-\u309f\u30a0-\u30ff\uff66-\uff9f]")
+_HANGUL_RE = re.compile(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7af]")
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
@@ -53,7 +58,10 @@ def _transmart_one_batch(texts):
         },
         "type": "plain",
         "model_category": "normal",
-        "source": {"lang": "en", "text_list": list(texts)},
+        # 源语言必须 auto：写死 "en" 时日文会被当成英文强行翻译，实测把
+        # 「OpenAIが新しいモデルを発表」译成「OpenAI新一代智能手表」这种臆造内容。
+        # auto 能同时正确处理英文/日文/韩文混排（v0.18.13，坑 56）。
+        "source": {"lang": "auto", "text_list": list(texts)},
         "target": {"lang": "zh"},
     }
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -117,8 +125,21 @@ def _transmart(texts, log=None):
 
 # ---------------------------------------------------------------- MyMemory 兜底
 
+def _src_lang(text):
+    """给 MyMemory 用的源语言码（它不支持 auto，必须显式给）。
+
+    与 i18n.detect_lang 同判据：假名→ja、谚文→ko、其余按 en。
+    这里刻意不 import i18n，避免 mt ↔ i18n 的导入顺序耦合。
+    """
+    if _KANA_RE.search(text):
+        return "ja"
+    if _HANGUL_RE.search(text):
+        return "ko"
+    return "en"
+
+
 def _mymemory_one(text):
-    params = {"q": text, "langpair": "en|zh-CN"}
+    params = {"q": text, "langpair": f"{_src_lang(text)}|zh-CN"}
     if MYMEMORY_EMAIL:
         params["de"] = MYMEMORY_EMAIL
     url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode(params)
