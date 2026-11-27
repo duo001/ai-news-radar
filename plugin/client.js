@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.15';
+    const BUILD_TAG = 'v0.18.17';
 
     function groupColor(name) {
       let h = 0;
@@ -403,6 +403,29 @@ window.__ModuleLoader__.load({
 .ain-item .m { display:flex; gap:8px; margin-top:6px; font-size:11px; color:var(--dsw-alias-label-secondary); }
 .ain-err { color:var(--dsw-alias-state-error-primary); font-size:12px; margin:8px 0; }
 .ain-empty { color:var(--dsw-alias-label-secondary); padding:30px 0; text-align:center; }
+/* 机翻失败横幅：一直留在页面顶部直到用户关掉或重试（v0.18.16） */
+.ain-tfail { display:flex; gap:8px; align-items:flex-start; margin:0 0 8px;
+  padding:9px 11px; border-radius:8px; font-size:12px; line-height:1.5;
+  color:var(--dsw-alias-state-error-primary);
+  background:color-mix(in srgb, var(--dsw-alias-state-error-primary) 9%, transparent);
+  border:1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 26%, transparent); }
+.ain-tfail-ico { flex:0 0 auto; line-height:1.4; }
+.ain-tfail-body { flex:1 1 auto; min-width:0; }
+.ain-tfail-msg { font-weight:600; word-break:break-word; }
+.ain-tfail-sub { margin-top:2px; opacity:.9; }
+.ain-tfail-x, .ain-tok-x { flex:0 0 auto; border:0; background:transparent; cursor:pointer;
+  font-size:14px; line-height:1; padding:0 2px; color:inherit; opacity:.6; }
+.ain-tfail-x:hover, .ain-tok-x:hover { opacity:1; }
+.ain-log-src { font-size:10px; padding:0 4px; border-radius:3px; margin-left:2px;
+  color:var(--dsw-alias-label-secondary);
+  background:color-mix(in srgb, var(--dsw-alias-label-secondary) 12%, transparent); }
+/* 翻译成功回执 */
+.ain-tok { display:flex; gap:8px; align-items:center; margin:0 0 8px; padding:7px 11px;
+  border-radius:8px; font-size:12px;
+  color:var(--dsw-alias-state-success-primary, #237804);
+  background:color-mix(in srgb, var(--dsw-alias-state-success-primary, #237804) 8%, transparent);
+  border:1px solid color-mix(in srgb, var(--dsw-alias-state-success-primary, #237804) 22%, transparent); }
+.ain-tok > :first-child { flex:1 1 auto; }
 .ain-src { border:1px solid var(--dsw-alias-border-l1); border-radius:8px; padding:10px 12px;
   margin-bottom:8px; background:var(--dsw-alias-bg-layer-1); }
 .ain-src .row1 { display:flex; align-items:center; gap:8px; }
@@ -539,6 +562,10 @@ window.__ModuleLoader__.load({
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
       // 机翻实时进度 {done,total,pages,page,provider} 或 {stale:true}
       const [transProgress, setTransProgress] = useState(null);
+      // 机翻失败态 {error,dead,done,total}：失败后一直显示原因，直到用户重试或关掉
+      const [transFail, setTransFail] = useState(null);
+      // 上一次机翻结果 {ok,translated,considered}：成功后给一句回执
+      const [transLast, setTransLast] = useState(null);
       const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
       const [weekly, setWeekly] = useState(null);  // 周报 Markdown（null=未打开）
       const [weeklyBusy, setWeeklyBusy] = useState(false);
@@ -578,27 +605,59 @@ window.__ModuleLoader__.load({
         setTranslating(true);
         setError('');
         setTransProgress(null);
-        // 轮询进度：接口在跑期间每 1.5s 读一次，按钮显示「翻译中 120/1111」，
-        // 不再是干转圈看不到进展（v0.18.15）
-        const timer = setInterval(() => {
-          api('/translate/progress')
-            .then((d) => {
-              if (d && d.running) setTransProgress(d);
-              else if (d && d.stale) setTransProgress({ stale: true });
-            })
-            .catch(() => {});
-        }, 1500);
         try {
-          await api('/translate', { method: 'POST', body: '{}' });
+          const d = await api('/translate', { method: 'POST', body: '{}' });
           await load(false);
+          setTransLast({ ok: true, translated: d.translated || 0,
+            considered: d.considered || 0 });
         } catch (err) {
+          // 失败必须同时：① 横幅持续显示原因 ② 落日志 ③ 停在失败态，
+          // 绝不回到「翻译中」（v0.18.16）
           setError(err.message);
+          setTransFail({ error: err.message, dead: [], done: 0, total: 0 });
+          pushClientLog('error', `自动翻译失败：${err.message}`);
         } finally {
-          clearInterval(timer);
           setTranslating(false);
           setTransProgress(null);
         }
       }, [load]);
+
+      // 只要处于「翻译中」就每 1.5s 读进度：按钮显示「翻译中 120/1111」。
+      // 轮询读到的 failed 也在这里处理，因此进面板时发现上次仍在跑也能跟上，
+      // 引擎那边失败/被 kill 都会在 2 分钟内反映成 failed 或 stale（v0.18.16）
+      useEffect(() => {
+        if (!translating) return undefined;
+        const timer = setInterval(() => {
+          api('/translate/progress')
+            .then((d) => {
+              if (!d) return;
+              if (d.running) { setTransProgress(d); return; }
+              setTransProgress(null);
+              if (d.failed) {
+                setTranslating(false);
+                setTransFail({ error: d.error || '', dead: d.dead || [],
+                  done: d.done || 0, total: d.total || 0 });
+              } else if (d.stale) {
+                setTranslating(false);
+                setTransFail({ error: '上次翻译被中断（进程可能被关闭），可重试',
+                  dead: [], done: 0, total: 0 });
+              }
+            })
+            .catch(() => {});
+        }, 1500);
+        return () => clearInterval(timer);
+      }, [translating]);
+
+      // 进面板时读一次机翻进度：上次是失败态就先把原因显示出来，
+      // 不用用户再点一次才知道「上次为什么没翻成」（v0.18.16）
+      useEffect(() => {
+        api('/translate/progress').then((d) => {
+          if (!d) return;
+          if (d.running) { setTranslating(true); setTransProgress(d); }
+          else if (d.failed) setTransFail({ error: d.error || '', dead: d.dead || [],
+            done: d.done || 0, total: d.total || 0 });
+        }).catch(() => {});
+      }, []);
 
       // 载入关注词配置（面板管理用）
       useEffect(() => {
@@ -946,8 +1005,33 @@ window.__ModuleLoader__.load({
           h('button', {
             className: 'ain-btn', disabled: logBusy,
             onClick: openLogs,
-            title: '查看前端错误日志（渲染崩溃、接口失败等，落盘在引擎 data/client-errors.log）',
+            title: '查看错误日志（前端渲染崩溃/接口失败，以及后端引擎退出码与翻译通道熔断，落盘在引擎 data/client-errors.log）',
           }, logBusy ? '读取中…' : '🐞 日志')),
+        // 机翻失败横幅：通道全挂时一直显示原因，不再让用户对着「翻译中」干等。
+        // 可关掉，但只关这一条，下次失败会再出现（v0.18.16）
+        transFail && h('div', { className: 'ain-tfail' },
+          h('span', { className: 'ain-tfail-ico', 'aria-hidden': 'true' }, '⚠'),
+          h('div', { className: 'ain-tfail-body' },
+            h('div', { className: 'ain-tfail-msg' }, `翻译失败：${transFail.error}`),
+            h('div', { className: 'ain-tfail-sub' },
+              transFail.total
+                ? `已翻成 ${transFail.done}/${transFail.total} 条，其余保留原文；`
+                : '一条都没翻成；',
+              (transFail.dead && transFail.dead.length)
+                ? `通道已熔断：${transFail.dead.join('、')}。`
+                : '',
+              '可点「🌐 网络」配代理后重试，或稍后再试（免费额度有每日上限）。')),
+          h('button', {
+            className: 'ain-tfail-x', title: '关掉提示',
+            onClick: () => setTransFail(null),
+          }, '×')),
+        // 上一次翻译成功的一句话回执
+        transLast && transLast.ok && h('div', { className: 'ain-tok' },
+          `译文已更新：新增 ${transLast.translated} 条，面板已刷新`,
+          h('button', {
+            className: 'ain-tok-x', title: '关掉提示',
+            onClick: () => setTransLast(null),
+          }, '×')),
         // 搜索框：过滤标题/摘要/中文译文
         h('div', { className: 'ain-search' },
           h('span', { className: 'ain-search-icon', 'aria-hidden': 'true' }, '🔍'),
@@ -1218,13 +1302,14 @@ window.__ModuleLoader__.load({
         logOpen && h('div', { className: 'ain-modal-mask', onClick: () => setLogOpen(false) },
           h('div', { className: 'ain-modal', onClick: (e) => e.stopPropagation() },
             h('div', { className: 'ain-modal-head' },
-              h('strong', null, `前端错误日志（${logEntries.length} 条，最多保留 500 条）`),
+              h('strong', null, `错误日志（${logEntries.length} 条，最多保留 500 条）`),
               h('div', { className: 'ain-modal-actions' },
                 h('button', {
                   className: 'ain-btn',
                   onClick: () => {
                     const text = logEntries.map((e) =>
-                      `${e.ts} [${e.level}] ${e.message}${e.extra ? `\n    ${e.extra}` : ''}`).join('\n');
+                      `${e.ts} [${e.level}][${e.source === 'server' ? '后端' : '前端'}] ${e.message}`
+                      + (e.extra ? `\n    ${e.extra}` : '')).join('\n');
                     navigator.clipboard?.writeText(text).catch(() => {});
                   },
                 }, '复制全部'),
@@ -1238,6 +1323,9 @@ window.__ModuleLoader__.load({
                     h('div', { key: i, className: `ain-log-line ain-log-${e.level || 'info'}` },
                       h('div', { className: 'ain-log-head' },
                         h('span', { className: 'ain-log-level' }, e.level || 'info'),
+                        // server = 插件后端（引擎退出码、通道熔断）；老日志无此字段按前端算
+                        h('span', { className: 'ain-log-src' },
+                          e.source === 'server' ? '后端' : '前端'),
                         h('span', { className: 'ain-log-ts' }, (e.ts || '').replace('T', ' ').slice(0, 19))),
                       h('div', { className: 'ain-log-msg' }, e.message),
                       e.extra && h('pre', { className: 'ain-log-extra' }, e.extra)))))));

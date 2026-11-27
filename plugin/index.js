@@ -203,6 +203,9 @@ async function appendClientLogs(entries) {
       message: String(e.message || '').slice(0, 2000),
       extra: e.extra ? String(e.extra).slice(0, 2000) : '',
       url: String(e.url || '').slice(0, 500),
+      // client = 浏览器端上报；server = 插件后端（引擎退出码、通道熔断等）。
+      // 老日志没有这个字段，读的时候按 client 处理（v0.18.16）
+      source: e.source === 'server' ? 'server' : 'client',
     }))
     .join('\n');
   if (!lines) return { written: 0 };
@@ -216,6 +219,15 @@ async function appendClientLogs(entries) {
     }
   } catch { /* 裁剪失败不影响写入 */ }
   return { written: entries.length };
+}
+
+// 后端错误也进同一个日志文件：引擎退出码、通道熔断、接口 500 都记一条，
+// 免得「翻译失败了但日志里什么都没有」（v0.18.16）
+async function logServerError(message, extra) {
+  try {
+    await appendClientLogs([{ level: 'error', source: 'server',
+      message, extra: extra || '' }]);
+  } catch { /* 日志写失败不能影响主流程 */ }
 }
 
 async function readClientLogs(limit = 200) {
@@ -342,11 +354,16 @@ function runRadar(argv, { graceMs = 300_000 } = {}) {
       reject(err);
       return;
     }
-    handle.done.then(({ exitCode }) => {
+    handle.done.then(async ({ exitCode }) => {
       const stdout = handle.collected.stdout?.readFrom(0).text || '';
       const stderr = handle.collected.stderr?.readFrom(0).text || '';
-      if (exitCode === 0) resolve({ stdout, stderr });
-      else reject(new Error(`radar.py ${argv.join(' ')} 退出码 ${exitCode}: ${stderr.slice(-500) || stdout.slice(-500)}`));
+      if (exitCode === 0) { resolve({ stdout, stderr }); return; }
+      const detail = stderr.slice(-500) || stdout.slice(-500);
+      const msg = `radar.py ${argv.join(' ')} 退出码 ${exitCode}`;
+      // 引擎自己会把原因打进 stderr（如「机翻失败：所有翻译通道均已熔断」），
+      // 这里连同 stderr 尾巴一起落日志，方便事后在「日志」里定位（v0.18.16）
+      await logServerError(`${msg}: ${detail}`, stderr.slice(-2000));
+      reject(new Error(`${msg}: ${detail}`));
     }).catch(reject);
   });
 }
@@ -365,9 +382,13 @@ async function readTranslateProgress() {
     const doc = JSON.parse(await readFile(TRANSLATE_PROGRESS_JSON, 'utf-8'));
     const updated = Date.parse(doc.updated_at || '') || 0;
     const stale = doc.running === true && (!updated || Date.now() - updated > STALE_MS);
-    return { ...doc, running: doc.running === true && !stale, stale };
+    // error/ok 由引擎在收尾时写入（翻译通道全挂、进程崩溃等）。
+    // failed=true 让面板能一直显示失败原因，而不是只在 500 响应里闪一下（v0.18.16）
+    const failed = !stale && doc.ok === false && !!doc.error;
+    return { ...doc, running: doc.running === true && !stale, stale, failed };
   } catch (e) {
-    return { running: false, stale: false, read_error: String(e.message || e) };
+    return { running: false, stale: false, failed: false,
+      read_error: String(e.message || e) };
   }
 }
 
@@ -419,7 +440,10 @@ export async function apply(ctx) {
       // ---- 自动机翻进度：面板轮询它显示「翻译中 X/Y」----
       if (req.method === 'GET' && route === '/translate/progress') {
         const doc = await readTranslateProgress();
-        sendJson(res, 200, { ok: true, ...doc });
+        // 注意顺序：doc 里的 ok 表示「上次翻译成功与否」，会覆盖外层信封的 ok，
+        // 导致前端 api() 把这条查询接口本身当成失败而抛错，失败横幅永远出不来。
+        // 所以先展开 doc，再用 ok:true 表示「这次查询本身成功」（v0.18.16）
+        sendJson(res, 200, { ...doc, ok: true });
         return;
       }
 
@@ -445,12 +469,26 @@ export async function apply(ctx) {
           newsCacheAt = 0;
           const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
           const deals = await readDeals();
+          // translated 用「本次跑成功了几条」（进度文件里的 done），
+          // 因为前端横幅写的是「新增 N 条」；翻译库总条数另有 totalInStore 字段。
+          // 早先这里直接给 news_translations 的键数（几千条），横幅会显示成
+          // 「新增 2821 条」，与本次实际翻译量不符（v0.18.17）
+          const done = await readTranslateProgress();
           sendJson(res, 200, { ok: true,
-            translated: Object.keys(payload.news_translations || {}).length,
+            translated: (done && done.done) || 0,
+            totalInStore: Object.keys(payload.news_translations || {}).length,
             news: await attachRead(mergeDeals(dealsAsNewsItems(deals), payload.news || [])),
             news_translations: payload.news_translations || {} });
         } catch (e) {
-          sendJson(res, 500, { ok: false, error: String(e.message || e) });
+          // 失败时优先用引擎写进进度文件的原因（更具体：哪个通道熔断了），
+          // 拿不到再退回子进程的 stderr（v0.18.16）
+          const prog = await readTranslateProgress();
+          const reason = (prog && (prog.error || prog.note)) || String(e.message || e);
+          await logServerError(`自动机翻失败：${reason}`, String(e.message || e));
+          sendJson(res, 500, { ok: false, error: reason,
+            dead: (prog && prog.dead) || [],
+            translated: (prog && prog.done) || 0,
+            considered: (prog && prog.total) || 0 });
         } finally {
           translateRunning = false;
         }

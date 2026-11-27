@@ -1,6 +1,6 @@
 ---
 name: ai-git-radar
-version: 0.18.15
+version: 0.18.17
 description: AI 资讯雷达。主力能力是并发聚合 526 个零密钥 RSS/Atom 资讯信源（厂商官方/科技媒体/技术博客/开源生态/AI 媒体/学术研究等 15 组），产出带中文翻译的资讯速递（Markdown + 自包含单文件 HTML + JSON 三份），标题与摘要走翻译流水线（可免费机翻自动中文化，无需 API key），按文章链接建库、已译不覆盖，news 子命令 8 路并发约 7 分钟采完 500+ 源。v0.8 新增信源自动发现：网页 RSS 声明扫描、OPML 批量导入（内置 7 个已核实社区目录）、远程开源清单同步（AIHOT），全部进入待审队列，验证通过才一键采纳，不会静默改写 feeds.json；连续 3 次采集失败的信源自动停用并记录原因。同一引擎被工作台插件 @local/ai-news-panel（../plugin，monorepo 内）以 subprocess 复用，提供侧边栏常驻面板、信源可视化维护与「发现」页签，插件走 news --quiet --json-out 固定路径。GitHub 项目扫描能力已封存为 legacy（run 子命令仍可用）：四类目——① 热门 AI 工具（Agent/RAG/MCP/编程助手等应用层）② 免费与优惠 token 项目（免费额度、充值优惠/折扣、聚合网关、key 池/镜像、资源清单，含安全风险标记）③ 最近的 AI 技术（新协议/新范式的工程落地）④ Agent 生态 Skills/DSH，硬排除 AI 模型本体开发。类目用声明式 YAML、信源用声明式 JSON 注册，扩展不改代码。触发场景：AI 新闻/资讯/RSS 订阅、每日 AI 情报、AI 资讯翻译/中文摘要、找 RSS 信源/订阅源推荐/OPML 导入、AI 开源趋势、GitHub trending 分析、免费 API/免费 token/白嫖额度、AI 工具选型、Agent skills/DSH/Claude Code/MCP 生态。
 ---
 
@@ -134,7 +134,7 @@ python3 radar.py render                      # 用最新 GitHub run 数据+翻�
 - 采集特性：纯标准库（urllib + xml.etree + ThreadPoolExecutor）零新依赖；**默认 8 路并发**（`--workers 1` 退回串行），单源容错（一个挂只记进 `news_failures` 不影响其他），网络失败自动回退 `data/cache/feeds/` 缓存（过期也用，保证离线出报告）；自动处理强制 gzip 压缩（见 references 第 18 条）；每源默认取前 8 条，全部按时间倒序
 - **摘要清洗**：先整块移除 `<style>/<script>` 与 HTML/CSS 注释，再去标签（实测 GitHub Blog 的字体版权、MS Research 的 `.yt-consent` 样式会在去标签后变成文本噪声，见 references 第 20 条）；正文中合法的 `{...}` 代码片段不误伤
 - **资讯翻译流水线**（独立于仓库翻译，按文章 `link` 建 key，存 `data/news_translations.json`）：`translate --news --todo` 只抽英文标题（原文即中文自动跳过）→ Agent 填 `zh_title`/`zh_summary` → `--news --apply` 合并（已存在永不覆盖）并重渲染；报告显示中文标题+缩进原标题+中文摘要，报告头显示覆盖率
-- **免费机翻通道（v0.10 起，v0.18.15 换主通道，`scripts/mt.py`）**：`translate --news --auto` 自动翻译成中文，**无需 API key、无需付费**。主通道 **Bing 网页翻译**（`cn.bing.com/ttranslatev3`，国内直连、单请求一条、可并发，并发 12 实测约 8.6 条/秒，1060 条约 2 分钟；需先从翻译页抓 IG/key/token，token 1 小时过期自动刷新重试）；失败降级腾讯交互翻译（`transmart.qq.com/api/imt`，可批量但国内常整段不可达），再降级 MyMemory 公共额度。**谷歌系（translate.googleapis.com / clients5.google.com）国内整段超时，不可用**。通道级熔断：某通道网络级失败或配额耗尽后本次运行不再尝试它（`mt.dead_providers()`），避免在死通道上每批白等 60s 让界面「看起来卡死」（坑 57/58）。要点：① 译文入库带 `source: auto:<通道>` 与 `translated_at`，人工精译（无该字段）永不被覆盖 ② 单条失败只跳过该条，不污染其余；整批失败才熔断通道 ③ transmart 侧另有双预算切片（单批 ≤40 条且 ≤4000 字符，实测 6000 通过、12000 报 `outOfLimit`，退回 8s 再试）（v0.18.15 起 Bing 是主通道，Bing 单请求只吃一条文本，靠并发而非批量） ④ 翻译后自动同步 `data/plugin-news.json`，面板刷新即见中文（`_rerender_news` 按 link 重打条目级 zh 字段）
+- **免费机翻通道（v0.10 起，v0.18.15 换主通道，`scripts/mt.py`）**：`translate --news --auto` 自动翻译成中文，**无需 API key、无需付费**。主通道 **Bing 网页翻译**（`cn.bing.com/ttranslatev3`，国内直连、单请求一条、可并发，并发 12 实测约 8.6 条/秒，1060 条约 2 分钟；需先从翻译页抓 IG/key/token，token 1 小时过期自动刷新重试）；失败降级腾讯交互翻译（`transmart.qq.com/api/imt`，可批量但国内常整段不可达），再降级 MyMemory 公共额度。**谷歌系（translate.googleapis.com / clients5.google.com）国内整段超时，不可用**。通道级熔断：某通道网络级失败或配额耗尽后本次运行不再尝试它（`mt.dead_providers()`），避免在死通道上每批白等 60s 让界面「看起来卡死」（坑 57/58）；通道顺序按上次成败动态排（`data/translate-health.json`，上次成功的优先、失败的冷却 6 小时内垫底，过后自动重试，坑 60）；失败时面板常驻横幅 + 后端日志（`source:"server"`），不再无声成功（坑 59）。要点：① 译文入库带 `source: auto:<通道>` 与 `translated_at`，人工精译（无该字段）永不被覆盖 ② 单条失败只跳过该条，不污染其余；整批失败才熔断通道 ③ transmart 侧另有双预算切片（单批 ≤40 条且 ≤4000 字符，实测 6000 通过、12000 报 `outOfLimit`，退回 8s 再试）（v0.18.15 起 Bing 是主通道，Bing 单请求只吃一条文本，靠并发而非批量） ④ 翻译后自动同步 `data/plugin-news.json`，面板刷新即见中文（`_rerender_news` 按 link 重打条目级 zh 字段）
 - **完整中文化现状**：当前 707 条资讯中 545 条英文标题 + 162 条原文即中文，机翻后覆盖率 100%
 
 ### 信源自动发现（v0.8，`scripts/discover.py`）

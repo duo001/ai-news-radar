@@ -332,8 +332,10 @@ def auto_translate_news(entries, log=None, limit=None, provider=None, progress=N
     if limit:
         todo = todo[:limit]
 
+    # error/dead 用于把「为什么没翻成」传到面板上（v0.18.16）：
+    # 通道全挂时必须让用户看到原因，而不是只看到一个转圈。
     stat = {"considered": len(todo), "translated": 0, "failed": 0,
-            "skipped": 0, "provider": "none"}
+            "skipped": 0, "provider": "none", "error": "", "dead": []}
     if not todo:
         return stat
 
@@ -393,7 +395,10 @@ def auto_translate_news(entries, log=None, limit=None, provider=None, progress=N
             out_page, used = mt_mod.translate_batch(
                 [texts[i] for i in idxs], log=log, provider=provider)
         except mt_mod.MTError as e:
-            # 所有通道都熔断（例如全网不可达）：保留已翻部分，停止继续尝试
+            # 所有通道都熔断（例如全网不可达）：保留已翻部分，停止继续尝试。
+            # 把原因记进 stat，radar.py 会写进进度文件、面板据此提示（v0.18.16）
+            stat["error"] = str(e)
+            stat["dead"] = sorted(mt_mod.dead_providers())
             if log:
                 log(f"  停止：{e}")
             break
@@ -408,7 +413,16 @@ def auto_translate_news(entries, log=None, limit=None, provider=None, progress=N
             progress({"page": page_no, "pages": len(pages),
                       "done": stat["translated"], "total": len(slots),
                       "failed": stat["failed"], "provider": stat["provider"],
-                      "dead": sorted(mt_mod.dead_providers())})
+                      "dead": sorted(mt_mod.dead_providers()),
+                      "error": stat["error"]})
+    # 一条都没翻成：无论原因是「抛错熔断」还是「通道静默返回空」（限流/被拦），
+    # 都必须标成失败，否则面板会以为跑成功了却什么都没变（v0.18.16）。
+    # 注意只判「全失败」——部分成功照常算成功，失败条数面板会单独展示。
+    if not stat["translated"] and stat["failed"]:
+        stat["dead"] = sorted(mt_mod.dead_providers())
+        if not stat["error"]:
+            dead_txt = ("、".join(stat["dead"]) + " ") if stat["dead"] else ""
+            stat["error"] = (f"所有翻译通道都没返回译文（{dead_txt}可能被限流或网络不通）")
     return stat
 
 

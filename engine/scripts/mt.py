@@ -18,6 +18,7 @@
 
 import concurrent.futures
 import json
+import pathlib
 import re
 import threading
 import time
@@ -64,6 +65,16 @@ MYMEMORY_EMAIL = ""
 # 只对硬失败熔断（连不上、配额耗尽）；单条失败、限流退避不熔断。
 _DEAD = set()
 
+# ---- 通道健康度：按「上次有没有翻成功」决定先后 ----------------------------
+# 免费通道的可用性经常整段变化（腾讯整月连不上、Bing 偶尔被限流），
+# 每次都按写死的顺序先撞一遍坏通道，等于每批都白等一次超时（v0.18.17）。
+# 这里把「哪个通道上次成功/失败」记在 data/translate-health.json，
+# 下次跑时把近期成功的排前面、近期失败的排最后。冷却期过后自动重新尝试，
+# 不会因为一次失败就永久拉黑（免费通道恢复后要能重新用上）。
+HEALTH_PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "translate-health.json"
+HEALTH_COOLDOWN = 6 * 3600      # 失败后 6 小时内排到最后，过了自动给机会
+_health_lock = threading.Lock()
+
 
 def dead_providers():
     """本次运行已熔断的通道名集合（供日志/进度展示）。"""
@@ -73,6 +84,74 @@ def dead_providers():
 def reset_breaker():
     """清空熔断状态（测试用）。"""
     _DEAD.clear()
+
+
+# ---------------------------------------------------------------- 通道健康度
+
+def read_health():
+    """读通道健康记录：{通道名: {"ok_at": 时间戳, "fail_at": 时间戳, "fails": 连续失败数}}。"""
+    try:
+        doc = json.loads(HEALTH_PATH.read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_health(doc):
+    try:
+        HEALTH_PATH.parent.mkdir(parents=True, exist_ok=True)
+        HEALTH_PATH.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass  # 健康记录写失败不影响翻译本身
+
+
+def mark_health(name, ok):
+    """记一次通道结果。成功清掉失败记录；失败记时间戳并累加 fails。"""
+    now = time.time()
+    with _health_lock:
+        doc = read_health()
+        rec = doc.get(name) if isinstance(doc.get(name), dict) else {}
+        if ok:
+            rec["ok_at"] = now
+            rec["fails"] = 0
+            rec.pop("fail_at", None)
+        else:
+            rec["fail_at"] = now
+            rec["fails"] = int(rec.get("fails") or 0) + 1
+        doc[name] = rec
+        _write_health(doc)
+
+
+def rank_providers(chain=None, now=None):
+    """按历史健康把通道排序：近期成功过的最前，近期失败过的垫底（冷却期内）。
+
+    排序键（升序）：
+      0 = 近期成功过（按成功时间，越近越前）
+      1 = 没试过（保持原始顺序）
+      2 = 失败过且仍在冷却期（按失败时间，越久越前，便于尽快重试）
+    不在冷却期的失败不再垫底 —— 重新给机会。
+    """
+    chain = list(PROVIDERS if chain is None else chain)
+    now = time.time() if now is None else now
+    health = read_health()
+    ranked = []
+    for i, (name, fn) in enumerate(chain):
+        rec = health.get(name) if isinstance(health.get(name), dict) else {}
+        ok_at = rec.get("ok_at") or 0
+        fail_at = rec.get("fail_at") or 0
+        # 失败时间晚于成功时间，才算「当前处于失败态」
+        if fail_at and fail_at > ok_at:
+            fresh = (now - fail_at) < HEALTH_COOLDOWN
+            key = (2, fail_at if not fresh else -fail_at, i)
+            if not fresh:
+                key = (1, 0, i)          # 冷却期已过：当作没试过，正常顺序
+        elif ok_at:
+            key = (0, -ok_at, i)         # 越近成功越靠前
+        else:
+            key = (1, 0, i)
+        ranked.append((key, name, fn))
+    ranked.sort(key=lambda x: x[0])
+    return [(name, fn) for _, name, fn in ranked]
 
 
 class MTError(Exception):
@@ -400,6 +479,12 @@ def translate_batch(texts, log=None, provider=None):
     chain = [p for p in PROVIDERS if provider is None or p[0] == provider]
     if not chain:
         raise MTError(f"未知翻译通道：{provider}")
+    # 按上次成功/失败情况排先后：近期成功过的排前面，近期失败的垫底，
+    # 免得每批都先撞一遍坏通道、白等一次超时（v0.18.17）
+    health_now = read_health()
+    chain = rank_providers(chain, now=None)
+    if log and len(chain) > 1:
+        log("  通道顺序（按上次成败）：" + " → ".join(n for n, _ in chain))
     # 已熔断的通道直接跳过：provider 显式指定时也遵守（宁可返回空也不白等）
     live = [p for p in chain if p[0] not in _DEAD]
     if not live:
@@ -414,15 +499,26 @@ def translate_batch(texts, log=None, provider=None):
             break
         batch = [texts[i] for i in pending]
         if log:
-            log(f"  通道 {name}：{len(batch)} 条")
+            rec = health_now.get(name) or {}
+            suffix = ""
+            if rec.get("fails") and (rec.get("fail_at") or 0) > (rec.get("ok_at") or 0):
+                suffix = "（上次失败，排后面）"
+            elif rec.get("ok_at"):
+                suffix = "（上次成功，优先）"
+            log(f"  通道 {name}：{len(batch)} 条{suffix}")
         got = fn(batch, log=log)
         residual = []
+        got_any = False
         for idx, value in zip(pending, got):
             if value:
                 out[idx] = value
                 used = name
+                got_any = True
             else:
                 residual.append(idx)
+        # 记录通道这次到底有没有翻成：有就排前面，一条没成就算坏通道（v0.18.17）
+        if got is not None and len(got):
+            mark_health(name, got_any)
         pending = residual
 
     if pending and log:

@@ -483,20 +483,32 @@ def cmd_translate(args):
                                           note="翻译中", **p)
 
             stat = {"considered": 0, "translated": 0, "failed": 0,
-                    "skipped": 0, "provider": "none"}
+                    "skipped": 0, "provider": "none", "error": "", "dead": []}
+            crashed = ""
             try:
                 stat = i18n.auto_translate_news(
                     entries, log=_log,
                     limit=getattr(args, "limit", None),
                     provider=getattr(args, "provider", None),
                     progress=_prog)
+            except Exception as e:                     # noqa: BLE001 - 兜底报错给面板
+                crashed = f"{type(e).__name__}: {e}"
+                _log(f"机翻异常中止：{crashed}")
             finally:
                 # 无论正常结束还是异常，都要把 running 置回 false，
-                # 否则面板会一直显示「翻译中」
+                # 否则面板会一直显示「翻译中」。同时把失败原因留在文件里，
+                # 面板读进度时能直接显示「翻译失败：…」（v0.18.16）
+                reason = crashed or stat.get("error") or ""
                 _write_translate_progress(
                     running=False, started_at=started, done=stat["translated"],
                     total=stat["considered"], failed=stat["failed"],
-                    provider=stat["provider"], note="已结束")
+                    provider=stat["provider"], dead=stat.get("dead") or [],
+                    error=reason, ok=not reason,
+                    note=("翻译失败：" + reason) if reason else "已结束")
+            if reason:
+                _log(f"机翻失败：{reason}（已译成 {stat['translated']} 条，"
+                     f"失败 {stat['failed']} 条）")
+                return 1
             _log(f"机翻完成：处理 {stat['considered']} 条，成功 {stat['translated']} 条，"
                  f"失败 {stat['failed']} 条，跳过 {stat['skipped']} 条"
                  f"（通道：{stat['provider']}）")

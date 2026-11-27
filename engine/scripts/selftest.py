@@ -671,6 +671,108 @@ def test_news_persistence_mixed_types():
           "快照：DB 保留期不短于面板窗口（历史不丢）")
 
 
+# ---- [24] 翻译失败要「看得见」：失败原因结构化、落盘、落日志（v0.18.16）----
+def test_translate_failure_visible():
+    import mt, i18n, radar as _radar
+    import tempfile, os, json, pathlib as _pl
+
+    # 1) i18n：通道全挂时 stat 必须带 error，不能静默返回「成功 0 条」
+    real_batch = mt.translate_batch
+    old_providers = mt.PROVIDERS
+    old_store, old_page = i18n.NEWS_STORE, i18n.AUTO_PAGE_TEXTS
+    tmp = tempfile.mktemp(suffix=".json")
+    i18n.NEWS_STORE = _pl.Path(tmp)
+    i18n.AUTO_PAGE_TEXTS = 4
+
+    def dead_batch(texts, log=None, provider=None):
+        raise mt.MTError("所有翻译通道本次运行均已熔断（bing、transmart）")
+
+    mt.translate_batch = dead_batch
+    try:
+        entries = [{"link": "https://f/1", "title": "Title one", "summary": ""}]
+        stat = i18n.auto_translate_news(entries, log=lambda *_: None)
+        check(stat["translated"] == 0, "失败：一条没翻成时 translated 为 0")
+        check("熔断" in stat["error"], "失败：stat 带具体原因（通道熔断）")
+        check(isinstance(stat.get("dead"), list), "失败：stat.dead 是列表（供面板显示）")
+
+        # 通道不抛错、只静默返回空（限流/被拦）也必须算失败，
+        # 否则面板以为跑成功、用户看不到任何提示（v0.18.16）
+        mt.translate_batch = real_batch          # 先摘掉上面那个必抛错的桩
+        mt.PROVIDERS = (("silent", lambda texts, log=None: [None] * len(texts)),)
+        mt.reset_breaker()
+        stat2 = i18n.auto_translate_news(
+            [{"link": "https://f/2", "title": "Another english title", "summary": ""}],
+            log=lambda *_: None)
+        check(stat2["translated"] == 0 and "没返回译文" in stat2["error"],
+              "失败：通道静默返回空也标成失败（不是无声成功）")
+    finally:
+        mt.translate_batch = real_batch
+        mt.PROVIDERS = old_providers
+        mt.reset_breaker()
+        i18n.NEWS_STORE, i18n.AUTO_PAGE_TEXTS = old_store, old_page
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+    # 2) radar.py：失败原因必须写进进度文件，且 ok=False（面板据此显示横幅）
+    old_prog = _radar.TRANSLATE_PROGRESS
+    tmp2 = tempfile.mktemp(suffix=".json")
+    _radar.TRANSLATE_PROGRESS = _pl.Path(tmp2)
+    try:
+        _radar._write_translate_progress(
+            running=False, ok=False, error="所有翻译通道本次运行均已熔断（bing）",
+            done=0, total=7, failed=7, dead=["bing"], note="翻译失败：x")
+        doc = json.loads(_pl.Path(tmp2).read_text(encoding="utf-8"))
+        check(doc["ok"] is False and "熔断" in doc["error"],
+              "进度：失败原因与 ok=False 落盘")
+        check(doc["running"] is False, "进度：失败时 running 仍为 False（不会卡在翻译中）")
+        check(doc["dead"] == ["bing"], "进度：熔断通道列表落盘")
+    finally:
+        _radar.TRANSLATE_PROGRESS = old_prog
+        if os.path.exists(tmp2):
+            os.remove(tmp2)
+
+    # 3) 源码静态断言：radar 的 except/finally 兜底 + 非零退出码
+    src = open(_radar.__file__, encoding="utf-8").read()
+    check("crashed = f\"{type(e).__name__}: {e}\"" in src,
+          "radar：异常兜底记下类型与信息")
+    check('error=reason, ok=not reason' in src,
+          "radar：finally 里把失败原因写进进度文件")
+    check('if reason:' in src and 'return 1' in src,
+          "radar：失败时返回非零退出码（插件据此判定失败）")
+
+    # 4) 插件后端：失败要落日志、且错误响应带原因
+    idx = open(_pl.Path(__file__).parent.parent.parent / "plugin" / "index.js",
+               encoding="utf-8").read()
+    check("async function logServerError" in idx, "后端：有写日志的统一入口")
+    check("source: 'server'" in idx, "后端：日志条目区分 server/client 来源")
+    check("await logServerError(`${msg}: ${detail}`" in idx,
+          "后端：引擎非零退出码落日志")
+    check("await logServerError(`自动机翻失败" in idx,
+          "后端：机翻失败落日志")
+    check("const failed = !stale && doc.ok === false && !!doc.error" in idx,
+          "后端：进度接口给出 failed 标记")
+    check("dead: (prog && prog.dead) || []" in idx,
+          "后端：失败响应带熔断通道列表")
+    # 坑：进度 doc 里也有 ok 字段（表示「上次翻译成功与否」），
+    # 如果写成 { ok:true, ...doc } 会被 doc.ok 覆盖，前端 api() 把这条查询接口
+    # 本身当成失败抛错，失败横幅永远出不来（v0.18.16 实测踩到）
+    check("{ ...doc, ok: true }" in idx,
+          "后端：进度接口先展开 doc 再置 ok（防 doc.ok 覆盖信封）")
+
+    # 5) 前端：失败横幅常驻 + 不再回到「翻译中」
+    cli = open(_pl.Path(__file__).parent.parent.parent / "plugin" / "client.js",
+               encoding="utf-8").read()
+    check("const [transFail, setTransFail] = useState(null)" in cli,
+          "前端：失败态独立 state")
+    check("ain-tfail" in cli and "翻译失败：" in cli,
+          "前端：失败横幅渲染")
+    check("pushClientLog('error', `自动翻译失败：" in cli,
+          "前端：失败同时落日志")
+    check("上次翻译被中断（进程可能被关闭），可重试" in cli,
+          "前端：stale 也转成失败提示（不会永久翻译中）")
+    check("e.source === 'server' ? '后端' : '前端'" in cli,
+          "前端：日志弹窗标出前后端来源")
+
 # ---- [23] Bing 翻译通道、通道熔断与分页落盘（v0.18.15，坑 57/58）----
 def test_mt_bing_and_breaker():
     import mt
@@ -941,6 +1043,74 @@ def test_client_hooks():
           "前端：语种判定先假名谚文后汉字（与引擎 i18n 同判据）")
     check(".ain-lang-ja" in src and ".ain-lang-en" in src,
           "前端：语种标签按语言着色")
+
+
+def test_provider_health_rank():
+    """[25] 按历史成败排翻译通道（v0.18.17）"""
+    import mt, tempfile, os, pathlib as _pl, time
+
+    old_health, old_providers = mt.HEALTH_PATH, mt.PROVIDERS
+    tmp = tempfile.mktemp(suffix=".json")
+    mt.HEALTH_PATH = _pl.Path(tmp)
+    # 前面几组用例会把 PROVIDERS 换成双通道桩，这里显式还原成三条真实通道，
+    # 否则「冷却期过后不垫底」这类断言在两条通道下没有意义
+    mt.PROVIDERS = (("bing", lambda t, log=None: [None] * len(t)),
+                    ("transmart", lambda t, log=None: [None] * len(t)),
+                    ("mymemory", lambda t, log=None: [None] * len(t)))
+    now = time.time()
+    try:
+        # 1) 排序：近期成功的在前，失败且冷却期内的垫底
+        mt._write_health({
+            "transmart": {"fail_at": now - 600, "fails": 3},
+            "bing": {"ok_at": now - 300},
+        })
+        order = [n for n, _ in mt.rank_providers()]
+        check(order[0] == "bing", "失败：上次成功的通道排最前（实际 %s）" % order)
+        check(order[-1] == "transmart", "失败：冷却期内失败的通道垫底（实际 %s）" % order)
+
+        # 2) 冷却期过后不再垫底：给恢复后的通道重新机会，不永久拉黑
+        mt._write_health({"transmart": {"fail_at": now - 7 * 3600, "fails": 3},
+                          "bing": {"ok_at": now - 300}})
+        order2 = [n for n, _ in mt.rank_providers()]
+        check(order2[-1] != "transmart", "失败：冷却期过后失败通道不再垫底（实际 %s）" % order2)
+
+        # 3) 一次成功的记录会清掉旧的失败态
+        mt._write_health({"transmart": {"fail_at": now - 60, "fails": 3}})
+        mt.mark_health("transmart", True)
+        rec = mt.read_health()["transmart"]
+        check(rec.get("fails") == 0 and not rec.get("fail_at"),
+              "失败：成功后清掉失败记录（实际 %s）" % rec)
+
+        # 4) 排序真的影响实际调用顺序：失败通道一次都不该被撞
+        calls = []
+        def bing_fn(t, log=None):
+            calls.append("bing")
+            return ["中" * 1] * len(t)
+        def tm_fn(t, log=None):
+            calls.append("transmart")
+            return [None] * len(t)
+        mt._write_health({"transmart": {"fail_at": now - 300, "fails": 2},
+                          "bing": {"ok_at": now - 100}})
+        mt.PROVIDERS = (("transmart", tm_fn), ("bing", bing_fn))
+        mt.reset_breaker()
+        out, used = mt.translate_batch(["hello world"])
+        check(out == ["中"] and used == "bing", "失败：排前的好通道直接命中")
+        check(calls == ["bing"], "失败：坏通道根本没被调用（实际调用 %s）" % calls)
+
+        # 5) 全失败也要记成失败（否则坏通道永远排前面）
+        def dead_fn(t, log=None):
+            return [None] * len(t)
+        mt.PROVIDERS = (("deadch", dead_fn),)
+        mt.reset_breaker()
+        mt.translate_batch(["hello"])
+        check("deadch" in mt.read_health() and mt.read_health()["deadch"].get("fails", 0) > 0,
+              "失败：全失败的通道被记成失败态")
+    finally:
+        mt.HEALTH_PATH = old_health
+        mt.PROVIDERS = old_providers
+        mt.reset_breaker()
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def main():
@@ -1493,6 +1663,12 @@ def main():
 
     print("[23] Bing 翻译通道、熔断、分页落盘与进度（坑 57/58）")
     test_mt_bing_and_breaker()
+
+    print("[24] 翻译失败可见性：原因结构化、落盘、落日志（v0.18.16）")
+    # print("[25] ...") 见下方注册
+    test_translate_failure_visible()
+    print("[25] 通道健康度：上次成功的优先、上次失败的垫底（v0.18.17）")
+    test_provider_health_rank()
     print("\n全部自测通过 ✅")
 
 

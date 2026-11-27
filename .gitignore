@@ -31,6 +31,7 @@ NOTES.local.md
 **/source-suggestions.json
 **/news-progress.json
 **/translate-progress.json
+**/translate-health.json
 **/source-health.json
 
 # 运行时数据库与翻译库（本地积累，不入库；sample-* 仍跟踪）
