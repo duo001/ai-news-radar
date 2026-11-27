@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.17';
+    const BUILD_TAG = 'v0.18.18';
 
     function groupColor(name) {
       let h = 0;
@@ -566,6 +566,7 @@ window.__ModuleLoader__.load({
       const [transFail, setTransFail] = useState(null);
       // 上一次机翻结果 {ok,translated,considered}：成功后给一句回执
       const [transLast, setTransLast] = useState(null);
+      const [autoFollow, setAutoFollow] = useState(false);  // 跟采集后的后台补译刷新
       const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
       const [weekly, setWeekly] = useState(null);  // 周报 Markdown（null=未打开）
       const [weeklyBusy, setWeeklyBusy] = useState(false);
@@ -592,6 +593,9 @@ window.__ModuleLoader__.load({
         try {
           const d = await api(refresh ? '/news?refresh=1' : '/news');
           setData(d);
+          // 采集接口会在后台补译新条目：跟着进度走，补译完自动刷一次，
+          // 用户不用再点「自动翻译」（v0.18.18）
+          if (refresh) setAutoFollow(true);
         } catch (err) {
           setError(err.message);
         } finally {
@@ -647,6 +651,35 @@ window.__ModuleLoader__.load({
         }, 1500);
         return () => clearInterval(timer);
       }, [translating]);
+
+      // 采集后的后台补译跟随：每 2s 读一次进度，一旦跑完就重载列表，
+      // 让新译好的中文直接出现。补译失败保持静默（那是锦上添花，
+      // 后端日志里有记录），不弹横幅打断用户（v0.18.18）
+      useEffect(() => {
+        if (!autoFollow) return undefined;
+        let stop = false;
+        const startedAt = Date.now();
+        let sawRunning = false;
+        const tick = () => {
+          api('/translate/progress')
+            .then((d) => {
+              if (stop || !d) return;
+              if (d.running) { sawRunning = true; setTransProgress(d); return; }
+              const waited = Date.now() - startedAt;
+              // 后台进程刚 spawn，进度文件还停在上次的 running:false：
+              // 前 8 秒看到「没在跑」不算数，否则会立刻停止跟随、错过这次补译。
+              // 8 秒后还没跑起来（或已经跑完）就收工。
+              if (!sawRunning && waited < 8000) return;
+              setTransProgress(null);
+              setAutoFollow(false);
+              if (sawRunning || waited < 60000) load(false);
+            })
+            .catch(() => { setAutoFollow(false); });
+        };
+        tick();
+        const timer = setInterval(tick, 2000);
+        return () => { stop = true; clearInterval(timer); };
+      }, [autoFollow, load]);
 
       // 进面板时读一次机翻进度：上次是失败态就先把原因显示出来，
       // 不用用户再点一次才知道「上次为什么没翻成」（v0.18.16）

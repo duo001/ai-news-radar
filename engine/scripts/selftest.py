@@ -1113,6 +1113,38 @@ def test_provider_health_rank():
             os.remove(tmp)
 
 
+def test_auto_translate_after_refresh():
+    """[26] 采集后自动补译（v0.18.18）"""
+    import pathlib as _pl
+    root = _pl.Path(__file__).resolve().parent.parent.parent
+    idx = (root / "plugin" / "index.js").read_text(encoding="utf-8")
+    cli = (root / "plugin" / "client.js").read_text(encoding="utf-8")
+
+    # 后端：刷新分支要触发后台补译，且不与手动翻译抢单飞锁
+    check("scheduleAutoTranslate('refresh')" in idx,
+          "采集后：刷新分支调用 scheduleAutoTranslate")
+    check("if (translateRunning || autoTranslateBusy) return;" in idx,
+          "采集后：手动翻译在跑时不掺和（避免两个进程抢翻译库）")
+    check("AUTO_TRANSLATE_MIN_GAP" in idx and "3 * 60 * 1000" in idx,
+          "采集后：两次自动补译有最小间隔，防抖")
+    check("[\'translate\', \'--news\', \'--auto\']" in idx,
+          "采集后：补译走 translate --news --auto")
+    check("logServerError(`采集后自动补译失败" in idx,
+          "采集后：补译失败落后端日志且不打扰用户")
+
+    # 前端：刷新后跟随后台补译，跑完自动重载
+    check("setAutoFollow(true)" in cli, "采集后：刷新成功后开始跟随补译")
+    check("if (!sawRunning && waited < 8000) return;" in cli,
+          "采集后：等后台进程起来（前 8 秒不算「没在跑」）")
+    check("setAutoFollow(false);" in cli and "load(false);" in cli,
+          "采集后：补译结束自动重载列表")
+
+    # 幂等：没有待译条目时不该报错（considered=0 时退出码 0）
+    i18n_src = (root / "engine" / "scripts" / "radar.py").read_text(encoding="utf-8")
+    check('return 0 if stat["translated"] or not stat["considered"] else 1' in i18n_src,
+          "采集后：无待译条目时退出码 0（自动补译不会误报失败）")
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -1669,6 +1701,8 @@ def main():
     test_translate_failure_visible()
     print("[25] 通道健康度：上次成功的优先、上次失败的垫底（v0.18.17）")
     test_provider_health_rank()
+    print("[26] 采集后自动补译（v0.18.18）")
+    test_auto_translate_after_refresh()
     print("\n全部自测通过 ✅")
 
 

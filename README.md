@@ -4,12 +4,12 @@ AI 资讯工作台：并发聚合 **526 个零密钥 RSS/Atom 信源** + 2 个�
 去重、套用中文翻译，既可作为 **DSH 工作台插件**常驻侧边栏，也可作为 **Agent Skill /
 命令行工具**独立运行。
 
-当前版本 **v0.18.17**。
+当前版本 **v0.18.18**。
 
 [![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
 
 > CI 为**手动触发**（Actions 页 → selftest → Run workflow），在 Python 3.10 / 3.12 上跑
-> **25 组 / 333 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
+> **26 组 / 342 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
 > `python engine/scripts/selftest.py` 即可，push 不触发 run。
 
 ## 能力概览
@@ -116,7 +116,7 @@ python3 radar.py discover --remote                     # AIHOT 远程开源清�
 python3 radar.py discover --list                       # 看待审队列
 python3 radar.py discover --accept id1,id2             # 采纳 → 写回 feeds.json
 
-python3 selftest.py                        # 离线回归（25 组 / 333 断言）
+python3 selftest.py                        # 离线回归（26 组 / 342 断言）
 ```
 
 Python 3.8+，资讯采集与翻译纯标准库。GitHub 项目雷达（legacy）额外需要
@@ -216,7 +216,7 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 - **人工决策边界**：自动发现只进待审队列，绝不静默改写配置
 - **面板即真相源**：插件与 CLI 共用同一份 `feeds.json` 与同一个引擎，无第二套逻辑
 - **零 JS 的 HTML 报告**：自包含单文件、内联 CSS，浏览器直接打开，适合存档/发群
-- **离线可测**：25 组断言全部离线（含前端 Hook 顺序静态扫描），CI 与本地同源
+- **离线可测**：26 组断言全部离线（含前端 Hook 顺序静态扫描），CI 与本地同源
 - **错误可见**：前端错误边界 + 环形日志落盘 `client-errors.log`，渲染异常不再无声白屏
 
 ## 环境要求

@@ -335,6 +335,30 @@ function runRadarNews({ offline = true, perSource = 8, only = '' } = {}) {
   });
 }
 
+// 采集新条目后自动补译：拉完资讯立刻把新进来的英文条目翻掉，
+// 否则用户刷新后看到的还是英文，要等他自己点「自动翻译」才有中文。
+// 后台跑、不阻塞刷新响应；失败只落日志不打扰用户（v0.18.18）
+let autoTranslateBusy = false;
+let autoTranslateLastAt = 0;
+const AUTO_TRANSLATE_MIN_GAP = 3 * 60 * 1000;   // 两次自动补译至少隔 3 分钟
+
+function scheduleAutoTranslate(reason) {
+  const now = Date.now();
+  // 用户正在手动翻译时就别掺和，免得两个进程抢同一个翻译库
+  if (translateRunning || autoTranslateBusy) return;
+  if (now - autoTranslateLastAt < AUTO_TRANSLATE_MIN_GAP) return;
+  autoTranslateBusy = true;
+  autoTranslateLastAt = now;
+  // 不 await：采集接口立刻返回，译文随后由面板轮询进度自动刷新
+  // 不设 --limit：新条目一次性补完，否则采到 200 条只翻 80 条，
+  // 剩下的还得等用户手动点一次。Bing 并发 12 约 8.6 条/秒，几百条也就一分钟级。
+  runRadar(['translate', '--news', '--auto'], { graceMs: 1_800_000 })
+    .then(() => { newsCache = null; newsCacheAt = 0; })
+    // 自动补译是锦上添花：失败不弹错、不打扰用户，但要留一条日志便于排查
+    .catch((e) => logServerError(`采集后自动补译失败：${e.message || e}`))
+    .finally(() => { autoTranslateBusy = false; });
+}
+
 // 通用 radar.py 子进程（discover 等命令复用），返回 stdout/stderr 文本。
 function runRadar(argv, { graceMs = 300_000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -548,6 +572,8 @@ export async function apply(ctx) {
           await runRadarNews({ offline: false, perSource, only });
           newsCache = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
           newsCacheAt = Date.now();
+          // 新拉到的条目里可能有英文：后台补译，本次响应先返回原文
+          scheduleAutoTranslate('refresh');
         } else if (!existsSync(PLUGIN_NEWS_JSON)) {
           // 首次：先用缓存快速产出一份
           await runRadarNews({ offline: true, perSource, only });
