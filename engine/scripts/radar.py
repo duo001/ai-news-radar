@@ -50,6 +50,24 @@ DATA = ROOT / "data"
 # 但对外快照只铺最近 N 天，避免几百个源铺开 30 天后列表过长。
 PANEL_WINDOW_DAYS = 7
 
+# 自动机翻的实时进度：面板轮询它显示「翻译中 X/Y」，而不是一个转圈的「翻译中…」
+# （v0.18.15，坑 57）。进程被 kill 时用 stale 字段让前端自己判断。
+TRANSLATE_PROGRESS = DATA / "translate-progress.json"
+
+
+def _now_iso():
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _write_translate_progress(**kw):
+    """尽力写进度文件；写失败不影响翻译本身。"""
+    try:
+        kw.setdefault("updated_at", _now_iso())
+        TRANSLATE_PROGRESS.write_text(
+            json.dumps(kw, ensure_ascii=False), encoding="utf-8")
+    except Exception:                                  # noqa: BLE001 - 进度非关键路径
+        pass
+
 
 def _panel_days(args):
     """取面板快照窗口天数：命令行 --days 优先，缺省 PANEL_WINDOW_DAYS。"""
@@ -455,10 +473,30 @@ def cmd_translate(args):
             return 0
         if getattr(args, "auto", False):
             # 免费机翻通道：批量英译中，直接写入资讯翻译库
-            stat = i18n.auto_translate_news(
-                entries, log=_log,
-                limit=getattr(args, "limit", None),
-                provider=getattr(args, "provider", None))
+            started = _now_iso()
+            _write_translate_progress(running=True, started_at=started,
+                                      done=0, total=0, failed=0, pages=0,
+                                      page=0, provider="", note="准备中")
+
+            def _prog(p):
+                _write_translate_progress(running=True, started_at=started,
+                                          note="翻译中", **p)
+
+            stat = {"considered": 0, "translated": 0, "failed": 0,
+                    "skipped": 0, "provider": "none"}
+            try:
+                stat = i18n.auto_translate_news(
+                    entries, log=_log,
+                    limit=getattr(args, "limit", None),
+                    provider=getattr(args, "provider", None),
+                    progress=_prog)
+            finally:
+                # 无论正常结束还是异常，都要把 running 置回 false，
+                # 否则面板会一直显示「翻译中」
+                _write_translate_progress(
+                    running=False, started_at=started, done=stat["translated"],
+                    total=stat["considered"], failed=stat["failed"],
+                    provider=stat["provider"], note="已结束")
             _log(f"机翻完成：处理 {stat['considered']} 条，成功 {stat['translated']} 条，"
                  f"失败 {stat['failed']} 条，跳过 {stat['skipped']} 条"
                  f"（通道：{stat['provider']}）")

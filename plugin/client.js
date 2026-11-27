@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.14';
+    const BUILD_TAG = 'v0.18.15';
 
     function groupColor(name) {
       let h = 0;
@@ -537,6 +537,8 @@ window.__ModuleLoader__.load({
       const [activeTopic, setActiveTopic] = useState(''); // 领域主题筛选（enrich.topics，空=不限）
       const [activeWatch, setActiveWatch] = useState(''); // 关键词关注筛选（watch_hits，空=不限）
       const [translating, setTranslating] = useState(false); // 自动机翻进行中
+      // 机翻实时进度 {done,total,pages,page,provider} 或 {stale:true}
+      const [transProgress, setTransProgress] = useState(null);
       const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
       const [weekly, setWeekly] = useState(null);  // 周报 Markdown（null=未打开）
       const [weeklyBusy, setWeeklyBusy] = useState(false);
@@ -575,13 +577,26 @@ window.__ModuleLoader__.load({
       const runTranslate = useCallback(async () => {
         setTranslating(true);
         setError('');
+        setTransProgress(null);
+        // 轮询进度：接口在跑期间每 1.5s 读一次，按钮显示「翻译中 120/1111」，
+        // 不再是干转圈看不到进展（v0.18.15）
+        const timer = setInterval(() => {
+          api('/translate/progress')
+            .then((d) => {
+              if (d && d.running) setTransProgress(d);
+              else if (d && d.stale) setTransProgress({ stale: true });
+            })
+            .catch(() => {});
+        }, 1500);
         try {
           await api('/translate', { method: 'POST', body: '{}' });
           await load(false);
         } catch (err) {
           setError(err.message);
         } finally {
+          clearInterval(timer);
           setTranslating(false);
+          setTransProgress(null);
         }
       }, [load]);
 
@@ -898,7 +913,13 @@ window.__ModuleLoader__.load({
             className: 'ain-btn', disabled: translating || refreshing,
             onClick: () => runTranslate(),
             title: '把英文标题和摘要自动翻译成中文（免费通道，无需 API key）',
-          }, translating ? '翻译中…' : '自动翻译'),
+          }, translating
+            ? (transProgress && transProgress.stale
+                ? '上次翻译被中断，重试'
+                : (transProgress && transProgress.total
+                    ? `翻译中 ${transProgress.done || 0}/${transProgress.total}`
+                    : '翻译中…'))
+            : '自动翻译'),
           h('button', {
             className: 'ain-btn' + (unreadOnly ? ' primary' : ''),
             onClick: () => setUnreadOnly(!unreadOnly),

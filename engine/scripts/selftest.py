@@ -486,20 +486,26 @@ def test_dedup_and_fallback():
 
 def test_sourcecheck():
     import sourcecheck
+    from datetime import datetime, timedelta, timezone
     feeds_doc = [
         {"id": "s1", "name": "活跃源", "group": "科技媒体", "enabled": True},
         {"id": "s2", "name": "静默源", "group": "技术博客", "enabled": True},
         {"id": "s3", "name": "停用源", "group": "科技媒体", "enabled": False},
     ]
+    # 日期必须相对「现在」算：写死日期会随时间推移滑出 7 天窗口，
+    # 让本该活跃的 s1 变成静默源（曾因此误报，v0.18.15 修）
+    now = datetime.now(timezone.utc)
+    recent = (now - timedelta(days=1)).isoformat(timespec="seconds")   # 窗口内
+    old = (now - timedelta(days=30)).isoformat(timespec="seconds")     # 窗口外、30 天内
     entries = [
-        {"source_id": "s1", "published": "2026-11-15T00:00:00+00:00"},
-        {"source_id": "s2", "published": "2026-10-01T00:00:00+00:00"},  # 30 天内有、7 天窗口外
+        {"source_id": "s1", "published": recent},
+        {"source_id": "s2", "published": old},
     ]
     result = sourcecheck.run_check(feeds_doc, entries, days=7)
     silent_ids = [s["id"] for s in result["silent"]]
     check(silent_ids == ["s2"], f"体检：只报启用且窗口内 0 条的源（实际 {silent_ids}）")
     s2 = next(s for s in result["silent"] if s["id"] == "s2")
-    check(s2["last_published"].startswith("2026-10-01"), "体检：最近条目时间取全量窗口")
+    check((s2["last_published"] or "").startswith(old[:10]), "体检：最近条目时间取全量窗口")
 
     # 故障与孤儿
     health = {
@@ -664,6 +670,119 @@ def test_news_persistence_mixed_types():
     check(_db.RETENTION_DAYS >= radar.PANEL_WINDOW_DAYS,
           "快照：DB 保留期不短于面板窗口（历史不丢）")
 
+
+# ---- [23] Bing 翻译通道、通道熔断与分页落盘（v0.18.15，坑 57/58）----
+def test_mt_bing_and_breaker():
+    import mt
+
+    # 1) token 解析：从翻译页 HTML 抽 IG / key / token（结构变了要立刻报错）
+    html = ('<script>IG:"163D37ED34AA428694382B2B545E67B6"</script>'
+            'params_AbusePreventionHelper = [1795740106912,"PGWb-WNSZhiMpF9JU",3600000]'
+            'params_AbusePreventionHelper = [1795740106912,"PGWb-WNSZhiMpF9JU",3600000];')
+    m_ig = mt._BING_IG_RE.search(html)
+    m_ab = mt._BING_ABUSE_RE.search(html)
+    check(m_ig and m_ig.group(1) == "163D37ED34AA428694382B2B545E67B6", "Bing：IG 抽取")
+    check(m_ab and m_ab.group(1) == "1795740106912" and m_ab.group(3) == "3600000",
+          "Bing：key/ttl 抽取")
+    check(m_ab.group(2) == "PGWb-WNSZhiMpF9JU", "Bing：token 抽取")
+    check(mt._BING_IG_RE.search('IG:"short"') is None, "Bing：IG 少于 16 位不认（防误匹配）")
+
+    # 2) 被拒异常是 MTError 子类：只有它能触发 token 刷新重试
+    check(issubclass(mt._BingRejected, mt.MTError), "Bing：拒绝异常继承 MTError")
+
+    # 3) 熔断：通道进 _DEAD 后 translate_batch 直接跳过，不发起网络请求
+    mt.reset_breaker()
+    called = []
+    real_bing, real_tm = mt._bing, mt._transmart
+
+    def fake_bing(texts, log=None):
+        called.append("bing")
+        return ["译B" + t[:4] for t in texts]
+
+    def fake_tm(texts, log=None):
+        called.append("transmart")
+        return [None] * len(texts)
+
+    mt.PROVIDERS = (("bing", fake_bing), ("transmart", fake_tm))
+    try:
+        out, used = mt.translate_batch(["hello"])
+        check(used == "bing" and called == ["bing"], "熔断前走首个可用通道")
+        mt._DEAD.add("bing")
+        called.clear()
+        out2, used2 = mt.translate_batch(["hello"])
+        check("bing" not in called, "熔断后不再尝试该死通道")
+        check(used2 == "none" and out2 == [None], "其余通道也失败时返回 None 不抛错")
+
+        # 全部通道熔断 → 明确抛错（而不是静默返回空）
+        mt._DEAD.add("transmart")
+        raised = False
+        try:
+            mt.translate_batch(["hello"])
+        except mt.MTError:
+            raised = True
+        check(raised, "全部通道熔断时抛 MTError")
+    finally:
+        mt.PROVIDERS = (("bing", real_bing), ("transmart", real_tm))
+        mt.reset_breaker()
+
+    # 4) 分页落盘：第 2 页失败时，第 1 页的译文必须已经在库里
+    import tempfile, os, json, pathlib as _pl, i18n
+    tmp = tempfile.mktemp(suffix=".json")
+    old_store = i18n.NEWS_STORE
+    old_page = i18n.AUTO_PAGE_TEXTS
+    real_batch = mt.translate_batch
+    i18n.NEWS_STORE = _pl.Path(tmp)
+    i18n.AUTO_PAGE_TEXTS = 2          # 每页 2 段文本 → 下面的 4 条标题 = 2 页
+    page_no = {"n": 0}
+
+    def flaky_batch(texts, log=None, provider=None):
+        page_no["n"] += 1
+        if page_no["n"] >= 2:
+            raise mt.MTError("所有翻译通道本次运行均已熔断（bing）")
+        return ["译:" + t for t in texts], "fake"
+
+    mt.translate_batch = flaky_batch
+    try:
+        entries = [{"link": f"https://p/{i}", "title": f"Title {i}", "summary": ""}
+                   for i in range(4)]
+        stat = i18n.auto_translate_news(entries, log=lambda *_: None)
+        store = json.loads(_pl.Path(tmp).read_text(encoding="utf-8"))
+        check(len(store) == 2, f"分页落盘：第 1 页 2 条已入库（实际 {len(store)}）")
+        check(stat["translated"] == 2, "分页落盘：第 2 页熔断不丢第 1 页成果")
+        check("https://p/2" not in store, "分页落盘：失败页条目不入库")
+    finally:
+        mt.translate_batch = real_batch
+        i18n.NEWS_STORE = old_store
+        i18n.AUTO_PAGE_TEXTS = old_page
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+    # 5) 进度文件：running 一定被 finally 写回 false（防面板永远「翻译中」）
+    import radar as _radar
+    old_prog = _radar.TRANSLATE_PROGRESS
+    tmp2 = tempfile.mktemp(suffix=".json")
+    _radar.TRANSLATE_PROGRESS = _pl.Path(tmp2)
+    try:
+        _radar._write_translate_progress(running=True, done=3, total=9)
+        doc = json.loads(_pl.Path(tmp2).read_text(encoding="utf-8"))
+        check(doc["running"] is True and doc["done"] == 3 and "updated_at" in doc,
+              "进度：running/计数/时间戳写入")
+        src = open(_radar.__file__, encoding="utf-8").read()
+        check("finally:" in src and '_write_translate_progress(' in src,
+              "进度：--auto 分支在 finally 里落 running=False")
+    finally:
+        _radar.TRANSLATE_PROGRESS = old_prog
+        if os.path.exists(tmp2):
+            os.remove(tmp2)
+
+    # 6) 面板侧 stale 判定：超过 2 分钟没更新的 running 视为已死
+    idx = open(_pl.Path(__file__).parent.parent.parent / "plugin" / "index.js",
+               encoding="utf-8").read()
+    check("STALE_MS = 120 * 1000" in idx, "面板：stale 阈值 2 分钟")
+    check("readTranslateProgress" in idx, "面板：进度读取函数存在")
+    check("'/translate/progress'" in idx, "面板：进度路由存在")
+    check("409" in idx and "翻译在跑" in idx, "面板：单飞守卫返回 409")
+    check("translateRunning = false" in idx, "面板：finally 里释放单飞标记")
 
 def test_news_translate_payload():
     """坑 55 回归：翻译载荷必须合并所有资讯文件并把译文重打到条目级 zh 字段。
@@ -1371,6 +1490,9 @@ def main():
 
     print("[22] 资讯翻译载荷合并与条目级译文回灌（防机翻处理 0 条/面板不显示）")
     test_news_translate_payload()
+
+    print("[23] Bing 翻译通道、熔断、分页落盘与进度（坑 57/58）")
+    test_mt_bing_and_breaker()
     print("\n全部自测通过 ✅")
 
 

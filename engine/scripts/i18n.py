@@ -23,6 +23,9 @@ TODO = DATA / "todo_translate.json"
 NEWS_STORE = DATA / "news_translations.json"
 NEWS_TODO = DATA / "todo_news_translate.json"
 
+# 自动机翻每页多少段文本：每页翻完立即落盘并回调进度（v0.18.15，坑 57）。
+AUTO_PAGE_TEXTS = 240
+
 _CJK_RE = re.compile(r"[一-鿿]")
 # 日文假名（平假名 U+3040-309F、片假名 U+30A0-30FF、半角片假名 U+FF66-FF9F）。
 # 汉字（CJK 表意）中日共用，光看「有没有汉字」分不出中日——这是早期把日文
@@ -310,7 +313,7 @@ def news_coverage(entries):
 # 资讯自动机翻（免费通道，见 mt.py）
 # ============================================================
 
-def auto_translate_news(entries, log=None, limit=None, provider=None):
+def auto_translate_news(entries, log=None, limit=None, provider=None, progress=None):
     """把待译的英文资讯标题+摘要走免费机翻写入资讯翻译库。
 
     参数
@@ -362,14 +365,61 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
     if not texts:
         return stat
 
+    # 分页：每页翻完立即落盘。上千条待译时「全翻完再存」意味着中途失败/关页面
+    # 就全白干，界面也看不出进度（v0.18.15，坑 57）。
+    pages, cur, cur_n = [], [], 0
+    for slot in slots:
+        n = (1 if slot.get("title_idx") is not None else 0) + \
+            (1 if slot.get("summary_idx") is not None else 0)
+        if cur and cur_n + n > AUTO_PAGE_TEXTS:
+            pages.append(cur)
+            cur, cur_n = [], 0
+        cur.append(slot)
+        cur_n += n
+    if cur:
+        pages.append(cur)
+
     if log:
-        log(f"机翻 {len(slots)} 条（{len(texts)} 段文本）……")
-    out, used = mt_mod.translate_batch(texts, log=log, provider=provider)
-    stat["provider"] = used
+        log(f"机翻 {len(slots)} 条（{len(texts)} 段文本，分 {len(pages)} 页）……")
+
+    for page_no, page in enumerate(pages, 1):
+        idxs = []
+        for slot in page:
+            for key in ("title_idx", "summary_idx"):
+                i = slot.get(key)
+                if i is not None:
+                    idxs.append(i)
+        try:
+            out_page, used = mt_mod.translate_batch(
+                [texts[i] for i in idxs], log=log, provider=provider)
+        except mt_mod.MTError as e:
+            # 所有通道都熔断（例如全网不可达）：保留已翻部分，停止继续尝试
+            if log:
+                log(f"  停止：{e}")
+            break
+        if used != "none":
+            stat["provider"] = used
+        _merge_slots(store, page, dict(zip(idxs, out_page)), stat["provider"], stat)
+        save_news_store(store)                          # 每页落盘，不丢进度
+        if log:
+            log(f"  第 {page_no}/{len(pages)} 页：累计成功 {stat['translated']} 条，"
+                f"失败 {stat['failed']} 条（通道：{stat['provider']}）")
+        if progress:
+            progress({"page": page_no, "pages": len(pages),
+                      "done": stat["translated"], "total": len(slots),
+                      "failed": stat["failed"], "provider": stat["provider"],
+                      "dead": sorted(mt_mod.dead_providers())})
+    return stat
+
+
+def _merge_slots(store, slots, out_by_idx, used, stat):
+    """把一页的译文合并进翻译库（就地修改 store 与 stat）。"""
+    import glossary
 
     for slot in slots:
         if slot.get("only_summary"):
-            zh_summary = out[slot["summary_idx"]] if slot["summary_idx"] is not None else ""
+            i = slot.get("summary_idx")
+            zh_summary = out_by_idx.get(i) if i is not None else ""
             if not zh_summary:
                 stat["failed"] += 1
                 continue
@@ -385,13 +435,13 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
             }
             stat["translated"] += 1
             continue
-        zh_title = out[slot["title_idx"]]
+        zh_title = out_by_idx.get(slot["title_idx"])
         if not zh_title:
             stat["failed"] += 1
             continue
         zh_summary = ""
         if slot["summary_idx"] is not None:
-            zh_summary = out[slot["summary_idx"]] or ""
+            zh_summary = out_by_idx.get(slot["summary_idx"]) or ""
         # 术语归一化（原文语境 = 标题 + 摘要）
         ctx_blob = f"{slot['title']} {slot['summary_src']}"
         zh_title, _ = glossary.normalize_text(zh_title, ctx_blob)
@@ -407,6 +457,3 @@ def auto_translate_news(entries, log=None, limit=None, provider=None):
                               .astimezone().isoformat(timespec="seconds"),
         }
         stat["translated"] += 1
-
-    save_news_store(store)
-    return stat

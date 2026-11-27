@@ -35,7 +35,7 @@ python3 radar.py translate --todo     # 仓库简介翻译（另一套翻译库�
 python3 radar.py source-check         # 信源体检：静默源/故障源/health 孤儿（v0.15，纯本地）
 python3 radar.py weekly               # 近 7 天周报 Markdown（含关注专区、主题分区、体检附榜）
 python3 radar.py backup               # 资产备份：翻译库/已读/关注词/DB → data/backups/*.zip
-python3 selftest.py                   # 离线回归测试（22 组 / 284 条断言）
+python3 selftest.py                   # 离线回归测试（23 组 / 304 条断言）
 ```
 
 每次 `news` 产出三份同一数据的文件：`data/news-*.html`（自包含单文件，浏览器直接打开）、
@@ -78,7 +78,7 @@ ai-git-radar/
 │   ├── backup.py            # ★ 资产备份（v0.17）：翻译库/已读/关注词/DB 打包 zip
 │   ├── db.py                # SQLite 持久化（30 天保留、UPSERT by link、temp_store=MEMORY）
 │   ├── discover.py          # 信源自动发现：网页声明/常见路径/OPML 目录/远程清单 → 待审队列
-│   ├── mt.py                # 免费机翻（腾讯 transmart 主通道，零 key，双预算切片）
+│   ├── mt.py                # 免费机翻（Bing 网页主通道 + transmart/MyMemory 降级，零 key，通道熔断）
 │   ├── i18n.py              # 两套翻译库：资讯(按 link) + 仓库(按 owner/repo)，已译不覆盖
 │   ├── gh_client.py         # [legacy] GitHub 抓取：API/网页/raw 三通路 + 缓存
 │   ├── registry.py          # [legacy] 类目加载与查询生成、强弱词/双通道校验
@@ -87,8 +87,8 @@ ai-git-radar/
 │   ├── scorer.py            # [legacy] 六维情报评分
 │   ├── report.py            # Markdown 渲染（资讯 + legacy 项目，中文优先、主归属常量）
 │   ├── html_report.py       # 自包含单文件 HTML（内联 CSS、零 JS、资讯/项目两套渲染）
-│   └── selftest.py          # 离线回归（22 组，含前端 Hooks 静态扫描）
-├── references/              # 设计文档（数据源坑 56 条、评分方法论）
+│   └── selftest.py          # 离线回归（23 组，含前端 Hooks 静态扫描）
+├── references/              # 设计文档（数据源坑 58 条、评分方法论）
 ├── tools/
 │   ├── lightpanda           # 轻量无头浏览器二进制（HTML→全页 PNG）
 │   └── screenshot.py        # 一键把报告截成长图
@@ -118,7 +118,7 @@ ai-git-radar/
 ## 边界
 
 资讯只接零密钥 RSS/Atom 与零 key 结构化 API，需要 key 的信源类型（X 搜索、公众号、
-网页选择器等）不做；翻译双通道——免费机翻（腾讯 transmart，零 key）与人工精译，
+网页选择器等）不做；翻译双通道——免费机翻（Bing 网页端主通道，零 key）与人工精译，
 已译内容跨天复用且机翻不覆盖精译；legacy GitHub 通路只做 README 静态分析、不实测
 第三方 API；HTML 报告零 JS、纯内联 CSS。
 

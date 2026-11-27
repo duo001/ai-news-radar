@@ -33,6 +33,10 @@ const FEEDS_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'feeds.json');
 const OPML_CATALOG_JSON = path.join(ENGINE_DIR, 'data', 'sources', 'opml-catalog.json');
 const SUGGESTIONS_JSON = path.join(ENGINE_DIR, 'data', 'source-suggestions.json');
 const NEWS_PROGRESS_JSON = path.join(ENGINE_DIR, 'data', 'news-progress.json');
+// 自动机翻实时进度（scripts/radar.py 写，面板轮询）
+const TRANSLATE_PROGRESS_JSON = path.join(ENGINE_DIR, 'data', 'translate-progress.json');
+// 单飞标记：同时在跑两个 translate 会互相浪费时间，还会用同一份库互相覆盖
+let translateRunning = false;
 const PLUGIN_NEWS_JSON = path.join(ENGINE_DIR, 'data', 'plugin-news.json');
 // 已读状态：按 link 记 read_at，与 news.db 解耦（deals 条目不在 news 表里也能标记）
 const READ_JSON = path.join(ENGINE_DIR, 'data', 'news-read.json');
@@ -352,6 +356,21 @@ async function readSuggestions() {
   return JSON.parse(await readFile(SUGGESTIONS_JSON, 'utf-8'));
 }
 
+// 读机翻进度；超过 2 分钟没更新视为进程已死（running 置 false + stale），
+// 否则被 kill 掉的那次会让面板永远显示「翻译中」。
+async function readTranslateProgress() {
+  const STALE_MS = 120 * 1000;
+  try {
+    if (!existsSync(TRANSLATE_PROGRESS_JSON)) return { running: false, stale: false };
+    const doc = JSON.parse(await readFile(TRANSLATE_PROGRESS_JSON, 'utf-8'));
+    const updated = Date.parse(doc.updated_at || '') || 0;
+    const stale = doc.running === true && (!updated || Date.now() - updated > STALE_MS);
+    return { ...doc, running: doc.running === true && !stale, stale };
+  } catch (e) {
+    return { running: false, stale: false, read_error: String(e.message || e) };
+  }
+}
+
 async function readOpmlCatalog() {
   if (!existsSync(OPML_CATALOG_JSON)) return { catalogs: [] };
   return JSON.parse(await readFile(OPML_CATALOG_JSON, 'utf-8'));
@@ -397,19 +416,31 @@ export async function apply(ctx) {
         return;
       }
 
+      // ---- 自动机翻进度：面板轮询它显示「翻译中 X/Y」----
+      if (req.method === 'GET' && route === '/translate/progress') {
+        const doc = await readTranslateProgress();
+        sendJson(res, 200, { ok: true, ...doc });
+        return;
+      }
+
       // ---- 自动机翻（免费通道，翻译英文标题/摘要后同步固定文件）----
       if (req.method === 'POST' && route === '/translate') {
         if (!enginePresent) {
           sendJson(res, 503, { ok: false, error: `引擎目录不存在: ${ENGINE_DIR}` });
           return;
         }
+        if (translateRunning) {
+          sendJson(res, 409, { ok: false, error: '已有一次翻译在跑，等它结束再点' });
+          return;
+        }
         const body = await readJsonBody(req);
         const limit = Number(body && body.limit) || 0;
         const argv = ['translate', '--news', '--auto'];
         if (limit > 0) argv.push('--limit', String(limit));
+        translateRunning = true;
         try {
           // runRadar 成功才 resolve（失败会 reject），这里不再判 exitCode
-          await runRadar(argv, { graceMs: 600000 });
+          await runRadar(argv, { graceMs: 1_800_000 });
           newsCache = null;                      // 译文变了，让下次 /news 重读
           newsCacheAt = 0;
           const payload = JSON.parse(await readFile(PLUGIN_NEWS_JSON, 'utf-8'));
@@ -420,6 +451,8 @@ export async function apply(ctx) {
             news_translations: payload.news_translations || {} });
         } catch (e) {
           sendJson(res, 500, { ok: false, error: String(e.message || e) });
+        } finally {
+          translateRunning = false;
         }
         return;
       }

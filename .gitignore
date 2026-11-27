@@ -30,6 +30,7 @@ NOTES.local.md
 # 运行时队列与进度（不入库）
 **/source-suggestions.json
 **/news-progress.json
+**/translate-progress.json
 **/source-health.json
 
 # 运行时数据库与翻译库（本地积累，不入库；sample-* 仍跟踪）

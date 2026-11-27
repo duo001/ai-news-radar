@@ -4,12 +4,12 @@ AI 资讯工作台：并发聚合 **526 个零密钥 RSS/Atom 信源** + 2 个�
 去重、套用中文翻译，既可作为 **DSH 工作台插件**常驻侧边栏，也可作为 **Agent Skill /
 命令行工具**独立运行。
 
-当前版本 **v0.18.14**。
+当前版本 **v0.18.15**。
 
 [![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
 
 > CI 为**手动触发**（Actions 页 → selftest → Run workflow），在 Python 3.10 / 3.12 上跑
-> **22 组 / 284 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
+> **23 组 / 304 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
 > `python engine/scripts/selftest.py` 即可，push 不触发 run。
 
 ## 能力概览
@@ -18,7 +18,7 @@ AI 资讯工作台：并发聚合 **526 个零密钥 RSS/Atom 信源** + 2 个�
 |---|---|
 | 资讯聚合 | 526 个 RSS/Atom 信源 + OpenRouter 免费模型 / Hacker News 结构化采集器，8 路并发，单源容错、失败回退缓存 |
 | 正交分类 | `form`（形态）/ `obtain`（获取方式）/ `topics`（30 个领域标签，含时政/国际/AI 综合兜底）/ `codes`（邀请码）四维独立打标 |
-| 中文翻译 | 免费机翻（腾讯 transmart，零 key）+ 人工精译双通道，机翻不覆盖精译；术语归一化后处理 |
+| 中文翻译 | 免费机翻（Bing 网页主通道，失败降级腾讯 transmart/MyMemory，零 key）+ 人工精译双通道，机翻不覆盖精译；术语归一化后处理 |
 | 近似去重 | 同语言标题 Jaccard ≥ 0.62 折叠为一条，保留权威源作主条，标注「另有 N 家」 |
 | 关键词关注 | 声明式关注词，渲染层打 `watch_hits` 标签，面板可按词筛选 + 高亮 |
 | 周报导出 | 近 N 天按主题分组导出 Markdown，含关注词专区与信源体检附榜 |
@@ -116,7 +116,7 @@ python3 radar.py discover --remote                     # AIHOT 远程开源清�
 python3 radar.py discover --list                       # 看待审队列
 python3 radar.py discover --accept id1,id2             # 采纳 → 写回 feeds.json
 
-python3 selftest.py                        # 离线回归（22 组 / 284 断言）
+python3 selftest.py                        # 离线回归（23 组 / 304 断言）
 ```
 
 Python 3.8+，资讯采集与翻译纯标准库。GitHub 项目雷达（legacy）额外需要
@@ -170,7 +170,7 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 
 | 通道 | 触发 | 特点 |
 |---|---|---|
-| 免费机翻 | `translate --news --auto` 或面板「自动翻译」 | 腾讯 transmart，**零 API key**；按字符预算切片，超限退避；失败降级 MyMemory |
+| 免费机翻 | `translate --news --auto` 或面板「自动翻译」 | **零 API key**；主通道 Bing 网页端（并发 12 约 8.6 条/秒，token 过期自愈），失败降级腾讯 transmart → MyMemory；通道熔断 + 每页落盘 + 进度可见 |
 | 人工精译 | `translate --news --todo` → 填表 → `--apply` | 按文章 link 建库，**机翻不覆盖精译**，跨天复用 |
 
 **英文、日文、韩文以及其它非中文语种一律译成中文**。语种判定按「先假名/谚文、后汉字」
@@ -216,7 +216,7 @@ feed（`/comments/feed/`）自动剔除。发现结果全部落 `data/source-sug
 - **人工决策边界**：自动发现只进待审队列，绝不静默改写配置
 - **面板即真相源**：插件与 CLI 共用同一份 `feeds.json` 与同一个引擎，无第二套逻辑
 - **零 JS 的 HTML 报告**：自包含单文件、内联 CSS，浏览器直接打开，适合存档/发群
-- **离线可测**：22 组断言全部离线（含前端 Hook 顺序静态扫描），CI 与本地同源
+- **离线可测**：23 组断言全部离线（含前端 Hook 顺序静态扫描），CI 与本地同源
 - **错误可见**：前端错误边界 + 环形日志落盘 `client-errors.log`，渲染异常不再无声白屏
 
 ## 环境要求
