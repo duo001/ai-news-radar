@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.18';
+    const BUILD_TAG = 'v0.18.19';
 
     function groupColor(name) {
       let h = 0;
@@ -65,6 +65,20 @@ window.__ModuleLoader__.load({
         try { document.execCommand('copy'); done(); } catch (e) {}
         document.body.removeChild(ta);
       }
+    }
+
+    // 复制任意文本；不依赖按钮节点（抽屉里用）
+    function fallbackCopy(text, done) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => execCopy(text, done));
+      } else execCopy(text, done);
+    }
+    function execCopy(text, done) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
     }
 
     // 卡片底部的领域标签 + 兑换码胶囊（两种视图共用，模块级纯渲染；
@@ -237,6 +251,9 @@ window.__ModuleLoader__.load({
   transition:box-shadow .15s ease, transform .15s ease, border-color .15s ease; }
 .ain-item::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--group-color, var(--dsw-alias-border-l2)); }
 .ain-item:hover { border-color:var(--dsw-alias-brand-primary); box-shadow:0 4px 16px rgba(0,0,0,.08); transform:translateY(-1px); }
+/* 卡片是 div（点开抽屉而非跳转），补手型与键盘焦点环（v0.18.19） */
+.ain-item[role="button"] { cursor:pointer; }
+.ain-item[role="button"]:focus-visible { outline:2px solid var(--dsw-alias-brand-primary); outline-offset:2px; }
 /* 已读：整体降到半透明，hover 时恢复，避免干扰浏览但保留可回看 */
 .ain-item.ain-read { opacity:.5; }
 .ain-item.ain-read:hover { opacity:1; }
@@ -348,6 +365,38 @@ window.__ModuleLoader__.load({
   padding:12px 16px; border-bottom:1px solid var(--dsw-alias-border-l1); }
 .ain-modal-actions { display:flex; gap:8px; }
 .ain-modal-body { padding:16px 20px; overflow:auto; line-height:1.7; }
+/* 右侧详情抽屉（v0.18.19）：点卡片不跳走，先看已有信息 */
+.ain-drawer-mask { position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:1000;
+  display:flex; justify-content:flex-end; }
+.ain-drawer { width:min(520px, 100vw); height:100%; display:flex; flex-direction:column;
+  background:var(--dsw-alias-bg-base); border-left:3px solid var(--group-color, #0958d9);
+  box-shadow:-12px 0 40px rgba(0,0,0,.24); animation:ain-slide-in .18s ease-out; }
+@keyframes ain-slide-in { from { transform:translateX(24px); opacity:.6; } to { transform:none; opacity:1; } }
+.ain-drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:12px 16px; border-bottom:1px solid var(--dsw-alias-border-l1); flex:0 0 auto; }
+.ain-drawer-src { display:flex; align-items:center; gap:8px; min-width:0; }
+.ain-drawer-x { border:0; background:transparent; font-size:16px; line-height:1; cursor:pointer;
+  color:var(--dsw-alias-label-secondary); padding:4px 6px; border-radius:6px; }
+.ain-drawer-x:hover { background:var(--dsw-alias-bg-layer-1); }
+.ain-drawer-body { flex:1 1 auto; overflow:auto; padding:16px 18px; }
+.ain-drawer-title { font-size:17px; line-height:1.45; margin:0 0 8px; font-weight:600; }
+.ain-drawer-orig { font-size:12.5px; color:var(--dsw-alias-label-secondary); line-height:1.5; margin-bottom:10px; }
+.ain-drawer-meta { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:11.5px;
+  color:var(--dsw-alias-label-tertiary); margin-bottom:12px; }
+.ain-drawer-summary { font-size:13.5px; line-height:1.75; margin:0 0 14px; white-space:pre-wrap; }
+.ain-drawer-summary.empty { color:var(--dsw-alias-label-tertiary); font-style:italic; }
+.ain-drawer-en { margin:0 0 14px; font-size:12px; color:var(--dsw-alias-label-secondary); }
+.ain-drawer-en summary { cursor:pointer; color:var(--dsw-alias-label-tertiary); margin-bottom:6px; }
+.ain-drawer-en p { margin:0; line-height:1.7; }
+.ain-drawer-section { margin:0 0 12px; }
+.ain-drawer-label { font-size:11px; color:var(--dsw-alias-label-tertiary); margin-bottom:6px; }
+.ain-drawer-url { font-size:11px; color:var(--dsw-alias-label-tertiary); word-break:break-all;
+  padding-top:10px; border-top:1px dashed var(--dsw-alias-border-l1); }
+.ain-drawer-foot { flex:0 0 auto; display:flex; justify-content:flex-end; gap:8px;
+  padding:12px 16px; border-top:1px solid var(--dsw-alias-border-l1); }
+@media (max-width:560px) {
+  .ain-drawer { width:100vw; border-left-width:0; }
+}
 /* 错误日志弹窗 */
 .ain-log-list { display:flex; flex-direction:column; gap:8px; }
 .ain-log-line { border:1px solid #d9d9d9; border-radius:8px; padding:8px 10px; font-size:12px;
@@ -567,6 +616,8 @@ window.__ModuleLoader__.load({
       // 上一次机翻结果 {ok,translated,considered}：成功后给一句回执
       const [transLast, setTransLast] = useState(null);
       const [autoFollow, setAutoFollow] = useState(false);  // 跟采集后的后台补译刷新
+      const [detail, setDetail] = useState(null);          // 右侧详情抽屉的条目（null=关）
+      const [copied, setCopied] = useState('');            // 抽屉里「复制链接」的临时回执
       const [unreadOnly, setUnreadOnly] = useState(false);    // 只看未读
       const [weekly, setWeekly] = useState(null);  // 周报 Markdown（null=未打开）
       const [weeklyBusy, setWeeklyBusy] = useState(false);
@@ -841,6 +892,16 @@ window.__ModuleLoader__.load({
         return () => window.removeEventListener('keydown', onKey);
       }, [searchEl]);
 
+      // 详情抽屉：Esc 关闭（抽屉开着时优先于搜索框的 Esc 清空）
+      useEffect(() => {
+        if (!detail) return undefined;
+        const onKey = (e) => {
+          if (e.key === 'Escape') { e.preventDefault(); setDetail(null); }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [detail]);
+
       // 回到顶部：向上收集所有可滚动祖先（真实滚动容器未必是 .ain-wrap），任一超阈值即显示
       useEffect(() => {
         if (!scrollEl) return undefined;
@@ -880,6 +941,16 @@ window.__ModuleLoader__.load({
       // 把组件的主题/关注词筛选状态注入模块级纯渲染函数
       const chipsOf = (it, gc) => enrichChips(it, gc, [activeTopic, setActiveTopic]);
       const watchOf = (it) => watchChips(it, [activeWatch, setActiveWatch]);
+
+      // 点卡片：默认开右侧详情抽屉（不跳走），Ctrl/⌘ 点击或中键才直接开原文。
+      // 抽屉里再给「查看原文」按钮跳转，避免误点就离开面板（v0.18.19）
+      const openDetail = (it, ev) => {
+        if (!it || !it.link) return;
+        if (ev && (ev.ctrlKey || ev.metaKey || ev.button === 1)) return;  // 让浏览器自己开新标签
+        if (ev) ev.preventDefault();
+        markRead(it);
+        setDetail(it);
+      };
 
       // 已读：本地覆盖层优先，其次服务端下发的 it.read
       const isRead = (it) => (readMap[it.link] !== undefined
@@ -1247,12 +1318,16 @@ window.__ModuleLoader__.load({
               const dupBadge = dupBadgeOf(it);
               const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                 ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
-              return h('a', {
+              return h('div', {
                 className: 'ain-item' + (isDeal ? ' deal' : '') + (isRead(it) ? ' ain-read' : ''),
                 key: it.link,
-                href: it.link, target: '_blank', rel: 'noreferrer',
+                role: 'button', tabIndex: 0,
+                title: '点开看详情（Ctrl/⌘ 点击直接开原文）',
                 style: { '--group-color': gc },
-                onClick: () => markRead(it),
+                onClick: (ev) => openDetail(it, ev),
+                onKeyDown: (ev) => {
+                  if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetail(it, ev); }
+                },
               },
                 h('div', { className: 'meta-row' },
                   h('div', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(it.source_name)),
@@ -1287,12 +1362,16 @@ window.__ModuleLoader__.load({
                 const dupBadge = dupBadgeOf(it);
                 const obtainTxt = (!isDeal && it.obtain && OBTAIN_LABEL[it.obtain])
                   ? h('span', { className: 'ain-obtain' }, `· ${OBTAIN_LABEL[it.obtain]}`) : null;
-                return h('a', {
+                return h('div', {
                   className: 'ain-item' + (isDeal ? ' deal' : '') + (isRead(it) ? ' ain-read' : ''),
                   key: it.link,
-                  href: it.link, target: '_blank', rel: 'noreferrer',
+                  role: 'button', tabIndex: 0,
+                  title: '点开看详情（Ctrl/⌘ 点击直接开原文）',
                   style: { '--group-color': gc },
-                  onClick: () => markRead(it),
+                  onClick: (ev) => openDetail(it, ev),
+                  onKeyDown: (ev) => {
+                    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetail(it, ev); }
+                  },
                 },
                   h('div', { className: 'meta-row' },
                     h('div', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(it.source_name)),
@@ -1311,6 +1390,92 @@ window.__ModuleLoader__.load({
                   ...(isDeal ? [] : chipsOf(it, gc)),
                   ...watchOf(it));
               })))),
+        // 右侧详情抽屉：点卡片不跳走，先看这里已有的信息，要原文再点按钮（v0.18.19）
+        detail && (() => {
+          const tr = trans[detail.link] || {};
+          const dTitle = tr.zh_title || detail.title;
+          const dSummary = tr.zh_summary || detail.summary || '';
+          const isDeal = detail._kind === 'deal';
+          const gc = groupColor(detail.group);
+          return h('div', {
+            className: 'ain-drawer-mask',
+            onClick: () => setDetail(null),
+            style: { '--group-color': gc },
+          },
+            h('div', {
+              className: 'ain-drawer', role: 'dialog', 'aria-modal': 'true',
+              onClick: (e) => e.stopPropagation(),
+            },
+              h('div', { className: 'ain-drawer-head' },
+                h('div', { className: 'ain-drawer-src' },
+                  h('span', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(detail.source_name)),
+                  h('span', { className: 'ain-src' }, detail.source_name || '未知来源'),
+                  h('span', { className: 'ain-gtag' }, detail.group || '')),
+                h('button', {
+                  className: 'ain-drawer-x', title: '关闭（Esc）',
+                  onClick: () => setDetail(null),
+                }, '✕')),
+              h('div', { className: 'ain-drawer-body' },
+                h('h2', { className: 'ain-drawer-title' }, dTitle),
+                tr.zh_title && tr.zh_title !== detail.title
+                  && h('div', { className: 'ain-drawer-orig' }, detail.title),
+                h('div', { className: 'ain-drawer-meta' },
+                  h('span', null, fmtDate(detail.published)),
+                  isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
+                  (!isDeal && detail.form && detail.form !== 'news')
+                    && h('span', { className: `ain-form-badge ${detail.form}` },
+                      FORM_LABEL[detail.form] || detail.form),
+                  (!isDeal && detail.obtain && OBTAIN_LABEL[detail.obtain])
+                    && h('span', { className: 'ain-obtain' }, OBTAIN_LABEL[detail.obtain])),
+                dSummary
+                  ? h('p', { className: 'ain-drawer-summary' }, dSummary)
+                  : h('p', { className: 'ain-drawer-summary empty' }, '这条没有摘要，可点「查看原文」阅读全文。'),
+                tr.zh_summary && detail.summary && tr.zh_summary !== detail.summary
+                  && h('details', { className: 'ain-drawer-en' },
+                    h('summary', null, '原文摘要'),
+                    h('p', null, detail.summary)),
+                (detail.topics || detail._tags || []).length > 0
+                  && h('div', { className: 'ain-drawer-section' },
+                    h('div', { className: 'ain-drawer-label' }, '主题'),
+                    h('div', { className: 'ain-topics' },
+                      (detail.topics || detail._tags || []).map(t =>
+                        h('button', {
+                          className: 'ain-topic' + (activeTopic === t ? ' active' : ''),
+                          key: t, style: { '--group-color': gc },
+                          title: `只看「${t}」主题`,
+                          onClick: () => { setActiveTopic(activeTopic === t ? '' : t); setDetail(null); },
+                        }, t)))),
+                (detail.codes || []).length > 0
+                  && h('div', { className: 'ain-drawer-section' },
+                    h('div', { className: 'ain-drawer-label' }, '优惠码'),
+                    h('div', { className: 'ain-codes' },
+                      detail.codes.map(c => h('span', {
+                        className: 'ain-code', key: c, title: '点击复制',
+                        onClick: (ev) => copyCode(ev, c),
+                      }, c)))),
+                (detail.watch_hits || []).length > 0
+                  && h('div', { className: 'ain-drawer-section' },
+                    h('div', { className: 'ain-drawer-label' }, '命中关注词'),
+                    h('div', { className: 'ain-topics' },
+                      detail.watch_hits.map(t => h('span', { className: 'ain-topic', key: t }, t)))),
+                h('div', { className: 'ain-drawer-url' }, detail.link)),
+              h('div', { className: 'ain-drawer-foot' },
+                h('button', {
+                  className: 'ain-btn',
+                  title: '复制文章链接',
+                  onClick: () => {
+                    const done = () => { setCopied('链接已复制'); setTimeout(() => setCopied(''), 1600); };
+                    fallbackCopy(detail.link, done);
+                  },
+                }, copied === '链接已复制' ? '已复制 ✓' : '复制链接'),
+                h('button', {
+                  className: 'ain-btn', onClick: () => setDetail(null),
+                }, '关闭'),
+                h('a', {
+                  className: 'ain-btn primary', href: detail.link,
+                  target: '_blank', rel: 'noreferrer', onClick: () => markRead(detail),
+                }, '查看原文 ↗'))));
+        })(),
         // 周报弹窗：轻量 Markdown 渲染（标题/列表/引用/表格/代码，够看即可）
         weekly && h('div', { className: 'ain-modal-mask', onClick: () => setWeekly(null) },
           h('div', { className: 'ain-modal', onClick: (e) => e.stopPropagation() },

@@ -1145,6 +1145,46 @@ def test_auto_translate_after_refresh():
           "采集后：无待译条目时退出码 0（自动补译不会误报失败）")
 
 
+def test_detail_drawer():
+    """[27] 详情抽屉：点卡片不跳走（v0.18.19）"""
+    import pathlib as _pl
+    root = _pl.Path(__file__).resolve().parent.parent.parent
+    cli = (root / "plugin" / "client.js").read_text(encoding="utf-8")
+
+    # 卡片不能再是 <a href>，否则点了直接跳走
+    check("h('a', {\n                className: 'ain-item'" not in cli,
+          "抽屉：masonry 卡片不再是 a[href]")
+    check("h('a', {\n                  className: 'ain-item'" not in cli,
+          "抽屉：list 卡片不再是 a[href]")
+    check(cli.count("onClick: (ev) => openDetail(it, ev)") == 2,
+          "抽屉：两处卡片都改为点开抽屉")
+    check("role: 'button', tabIndex: 0" in cli, "抽屉：卡片可键盘聚焦")
+    check("if (ev && (ev.ctrlKey || ev.metaKey || ev.button === 1)) return;" in cli,
+          "抽屉：Ctrl/⌘/中键点击仍直接开原文（不劫持用户习惯）")
+
+    # 抽屉本体
+    check("const [detail, setDetail] = useState(null)" in cli, "抽屉：detail 状态")
+    check("className: 'ain-drawer-mask'" in cli and "className: 'ain-drawer'" in cli,
+          "抽屉：遮罩 + 抽屉容器")
+    check("role: 'dialog', 'aria-modal': 'true'" in cli, "抽屉：无障碍角色")
+    check("'查看原文 ↗'" in cli and "target: '_blank', rel: 'noreferrer'" in cli,
+          "抽屉：查看原文按钮新标签打开")
+    check("if (e.key === 'Escape') { e.preventDefault(); setDetail(null); }" in cli,
+          "抽屉：Esc 关闭")
+    check(".ain-drawer { width:min(520px, 100vw)" in cli, "抽屉：右侧固定宽度")
+    check("@media (max-width:560px)" in cli and ".ain-drawer { width:100vw" in cli,
+          "抽屉：移动端全宽")
+    check("animation:ain-slide-in" in cli, "抽屉：滑入动画")
+    check(".ain-item[role=\"button\"] { cursor:pointer; }" in cli,
+          "抽屉：卡片手型（div 默认没有）")
+
+    # 抽屉里的顺手交互
+    check("function fallbackCopy(text, done)" in cli, "抽屉：复制链接不依赖按钮节点")
+    check("setCopied('链接已复制')" in cli, "抽屉：复制后有回执")
+    check("onClick: () => { setActiveTopic(activeTopic === t ? '' : t); setDetail(null); }" in cli,
+          "抽屉：主题标签可点筛选并关抽屉")
+
+
 def main():
     print("[1] 类目加载与扩展机制")
     cats = registry.load_categories()
@@ -1703,6 +1743,8 @@ def main():
     test_provider_health_rank()
     print("[26] 采集后自动补译（v0.18.18）")
     test_auto_translate_after_refresh()
+    print("[27] 详情抽屉：点卡片不跳走（v0.18.19）")
+    test_detail_drawer()
     print("\n全部自测通过 ✅")
 
 
