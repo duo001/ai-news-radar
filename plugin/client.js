@@ -12,7 +12,7 @@ window.__ModuleLoader__.load({
     const PANEL_ID = 'ai-news';
     const API = '/ai-news';
     // 构建标记：白屏排查用。硬刷新后标题应显示该标记；看不到 = 浏览器仍在跑旧缓存 bundle
-    const BUILD_TAG = 'v0.18.19';
+    const BUILD_TAG = 'v0.18.20';
 
     function groupColor(name) {
       let h = 0;
@@ -365,7 +365,7 @@ window.__ModuleLoader__.load({
   padding:12px 16px; border-bottom:1px solid var(--dsw-alias-border-l1); }
 .ain-modal-actions { display:flex; gap:8px; }
 .ain-modal-body { padding:16px 20px; overflow:auto; line-height:1.7; }
-/* 右侧详情抽屉（v0.18.19）：点卡片不跳走，先看已有信息 */
+/* 右侧详情抽屉（v0.18.19，v0.18.20 改为与 .ain-wrap 平级）：点卡片不跳走，先看已有信息 */
 .ain-drawer-mask { position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:1000;
   display:flex; justify-content:flex-end; }
 .ain-drawer { width:min(520px, 100vw); height:100%; display:flex; flex-direction:column;
@@ -1046,6 +1046,11 @@ window.__ModuleLoader__.load({
         : 0;
 
       let __out;
+      // 周报 / 错误日志弹窗：必须在 try 外声明变量。曾经的写法是
+      //   __out = h(...), weekly && h(...), logOpen && h(...);
+      // 逗号序列表达式只保留最后一个值且无人接收 → 两个弹窗一直被丢弃、永远不显示（v0.18.20 修复）。
+      let weeklyModal = null;
+      let logModal = null;
       try {
       __out = h('div', { className: 'ain-wrap', ref: setScrollEl },
         h('div', { className: 'ain-head' },
@@ -1389,95 +1394,9 @@ window.__ModuleLoader__.load({
                     it._tags.map(t => h('span', { key: t }, t))),
                   ...(isDeal ? [] : chipsOf(it, gc)),
                   ...watchOf(it));
-              })))),
-        // 右侧详情抽屉：点卡片不跳走，先看这里已有的信息，要原文再点按钮（v0.18.19）
-        detail && (() => {
-          const tr = trans[detail.link] || {};
-          const dTitle = tr.zh_title || detail.title;
-          const dSummary = tr.zh_summary || detail.summary || '';
-          const isDeal = detail._kind === 'deal';
-          const gc = groupColor(detail.group);
-          return h('div', {
-            className: 'ain-drawer-mask',
-            onClick: () => setDetail(null),
-            style: { '--group-color': gc },
-          },
-            h('div', {
-              className: 'ain-drawer', role: 'dialog', 'aria-modal': 'true',
-              onClick: (e) => e.stopPropagation(),
-            },
-              h('div', { className: 'ain-drawer-head' },
-                h('div', { className: 'ain-drawer-src' },
-                  h('span', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(detail.source_name)),
-                  h('span', { className: 'ain-src' }, detail.source_name || '未知来源'),
-                  h('span', { className: 'ain-gtag' }, detail.group || '')),
-                h('button', {
-                  className: 'ain-drawer-x', title: '关闭（Esc）',
-                  onClick: () => setDetail(null),
-                }, '✕')),
-              h('div', { className: 'ain-drawer-body' },
-                h('h2', { className: 'ain-drawer-title' }, dTitle),
-                tr.zh_title && tr.zh_title !== detail.title
-                  && h('div', { className: 'ain-drawer-orig' }, detail.title),
-                h('div', { className: 'ain-drawer-meta' },
-                  h('span', null, fmtDate(detail.published)),
-                  isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
-                  (!isDeal && detail.form && detail.form !== 'news')
-                    && h('span', { className: `ain-form-badge ${detail.form}` },
-                      FORM_LABEL[detail.form] || detail.form),
-                  (!isDeal && detail.obtain && OBTAIN_LABEL[detail.obtain])
-                    && h('span', { className: 'ain-obtain' }, OBTAIN_LABEL[detail.obtain])),
-                dSummary
-                  ? h('p', { className: 'ain-drawer-summary' }, dSummary)
-                  : h('p', { className: 'ain-drawer-summary empty' }, '这条没有摘要，可点「查看原文」阅读全文。'),
-                tr.zh_summary && detail.summary && tr.zh_summary !== detail.summary
-                  && h('details', { className: 'ain-drawer-en' },
-                    h('summary', null, '原文摘要'),
-                    h('p', null, detail.summary)),
-                (detail.topics || detail._tags || []).length > 0
-                  && h('div', { className: 'ain-drawer-section' },
-                    h('div', { className: 'ain-drawer-label' }, '主题'),
-                    h('div', { className: 'ain-topics' },
-                      (detail.topics || detail._tags || []).map(t =>
-                        h('button', {
-                          className: 'ain-topic' + (activeTopic === t ? ' active' : ''),
-                          key: t, style: { '--group-color': gc },
-                          title: `只看「${t}」主题`,
-                          onClick: () => { setActiveTopic(activeTopic === t ? '' : t); setDetail(null); },
-                        }, t)))),
-                (detail.codes || []).length > 0
-                  && h('div', { className: 'ain-drawer-section' },
-                    h('div', { className: 'ain-drawer-label' }, '优惠码'),
-                    h('div', { className: 'ain-codes' },
-                      detail.codes.map(c => h('span', {
-                        className: 'ain-code', key: c, title: '点击复制',
-                        onClick: (ev) => copyCode(ev, c),
-                      }, c)))),
-                (detail.watch_hits || []).length > 0
-                  && h('div', { className: 'ain-drawer-section' },
-                    h('div', { className: 'ain-drawer-label' }, '命中关注词'),
-                    h('div', { className: 'ain-topics' },
-                      detail.watch_hits.map(t => h('span', { className: 'ain-topic', key: t }, t)))),
-                h('div', { className: 'ain-drawer-url' }, detail.link)),
-              h('div', { className: 'ain-drawer-foot' },
-                h('button', {
-                  className: 'ain-btn',
-                  title: '复制文章链接',
-                  onClick: () => {
-                    const done = () => { setCopied('链接已复制'); setTimeout(() => setCopied(''), 1600); };
-                    fallbackCopy(detail.link, done);
-                  },
-                }, copied === '链接已复制' ? '已复制 ✓' : '复制链接'),
-                h('button', {
-                  className: 'ain-btn', onClick: () => setDetail(null),
-                }, '关闭'),
-                h('a', {
-                  className: 'ain-btn primary', href: detail.link,
-                  target: '_blank', rel: 'noreferrer', onClick: () => markRead(detail),
-                }, '查看原文 ↗'))));
-        })(),
+              }))));
         // 周报弹窗：轻量 Markdown 渲染（标题/列表/引用/表格/代码，够看即可）
-        weekly && h('div', { className: 'ain-modal-mask', onClick: () => setWeekly(null) },
+        weeklyModal = weekly && h('div', { className: 'ain-modal-mask', onClick: () => setWeekly(null) },
           h('div', { className: 'ain-modal', onClick: (e) => e.stopPropagation() },
             h('div', { className: 'ain-modal-head' },
               h('strong', null, 'AI 资讯周报（近 7 天）'),
@@ -1494,10 +1413,10 @@ window.__ModuleLoader__.load({
                   },
                 }, '下载 .md'),
                 h('button', { className: 'ain-btn primary', onClick: () => setWeekly(null) }, '关闭'))),
-            h('div', { className: 'ain-modal-body', innerHTML: renderMd(weekly) }))),
+            h('div', { className: 'ain-modal-body', innerHTML: renderMd(weekly) })));
 
         // 错误日志弹窗：倒序展示，error 红、warn 橙，可复制可清空
-        logOpen && h('div', { className: 'ain-modal-mask', onClick: () => setLogOpen(false) },
+        logModal = logOpen && h('div', { className: 'ain-modal-mask', onClick: () => setLogOpen(false) },
           h('div', { className: 'ain-modal', onClick: (e) => e.stopPropagation() },
             h('div', { className: 'ain-modal-head' },
               h('strong', null, `错误日志（${logEntries.length} 条，最多保留 500 条）`),
@@ -1536,6 +1455,94 @@ window.__ModuleLoader__.load({
         __out = h('div', { className: 'ain-wrap' },
           h('div', { className: 'ain-err' }, '资讯渲染返回空值：' + String(__out)));
       }
+      // 右侧详情抽屉（v0.18.20）：**不能**放进 .ain-wrap —— 它是 overflow-y:auto 的滚动容器，
+      // position:fixed 的遮罩会被裁掉（同 .ain-top 的踩坑）。这里先算成变量，与 .ain-wrap 平级挂在 fragment 里。
+      const drawer = detail && (() => {
+        const tr = trans[detail.link] || {};
+        const dTitle = tr.zh_title || detail.title;
+        const dSummary = tr.zh_summary || detail.summary || '';
+        const isDeal = detail._kind === 'deal';
+        const gc = groupColor(detail.group);
+        return h('div', {
+          className: 'ain-drawer-mask',
+          onClick: () => setDetail(null),
+          style: { '--group-color': gc },
+        },
+          h('div', {
+            className: 'ain-drawer', role: 'dialog', 'aria-modal': 'true',
+            onClick: (e) => e.stopPropagation(),
+          },
+            h('div', { className: 'ain-drawer-head' },
+              h('div', { className: 'ain-drawer-src' },
+                h('span', { className: 'ain-avatar' }, isDeal ? '🎁' : srcInitial(detail.source_name)),
+                h('span', { className: 'ain-src' }, detail.source_name || '未知来源'),
+                h('span', { className: 'ain-gtag' }, detail.group || '')),
+              h('button', {
+                className: 'ain-drawer-x', title: '关闭（Esc）',
+                onClick: () => setDetail(null),
+              }, '✕')),
+            h('div', { className: 'ain-drawer-body' },
+              h('h2', { className: 'ain-drawer-title' }, dTitle),
+              tr.zh_title && tr.zh_title !== detail.title
+                && h('div', { className: 'ain-drawer-orig' }, detail.title),
+              h('div', { className: 'ain-drawer-meta' },
+                h('span', null, fmtDate(detail.published)),
+                isDeal && h('span', { className: 'ain-deal-badge' }, '情报'),
+                (!isDeal && detail.form && detail.form !== 'news')
+                  && h('span', { className: `ain-form-badge ${detail.form}` },
+                    FORM_LABEL[detail.form] || detail.form),
+                (!isDeal && detail.obtain && OBTAIN_LABEL[detail.obtain])
+                  && h('span', { className: 'ain-obtain' }, OBTAIN_LABEL[detail.obtain])),
+              dSummary
+                ? h('p', { className: 'ain-drawer-summary' }, dSummary)
+                : h('p', { className: 'ain-drawer-summary empty' }, '这条没有摘要，可点「查看原文」阅读全文。'),
+              tr.zh_summary && detail.summary && tr.zh_summary !== detail.summary
+                && h('details', { className: 'ain-drawer-en' },
+                  h('summary', null, '原文摘要'),
+                  h('p', null, detail.summary)),
+              (detail.topics || detail._tags || []).length > 0
+                && h('div', { className: 'ain-drawer-section' },
+                  h('div', { className: 'ain-drawer-label' }, '主题'),
+                  h('div', { className: 'ain-topics' },
+                    (detail.topics || detail._tags || []).map(t =>
+                      h('button', {
+                        className: 'ain-topic' + (activeTopic === t ? ' active' : ''),
+                        key: t, style: { '--group-color': gc },
+                        title: `只看「${t}」主题`,
+                        onClick: () => { setActiveTopic(activeTopic === t ? '' : t); setDetail(null); },
+                      }, t)))),
+              (detail.codes || []).length > 0
+                && h('div', { className: 'ain-drawer-section' },
+                  h('div', { className: 'ain-drawer-label' }, '优惠码'),
+                  h('div', { className: 'ain-codes' },
+                    detail.codes.map(c => h('span', {
+                      className: 'ain-code', key: c, title: '点击复制',
+                      onClick: (ev) => copyCode(ev, c),
+                    }, c)))),
+              (detail.watch_hits || []).length > 0
+                && h('div', { className: 'ain-drawer-section' },
+                  h('div', { className: 'ain-drawer-label' }, '命中关注词'),
+                  h('div', { className: 'ain-topics' },
+                    detail.watch_hits.map(t => h('span', { className: 'ain-topic', key: t }, t)))),
+              h('div', { className: 'ain-drawer-url' }, detail.link)),
+            h('div', { className: 'ain-drawer-foot' },
+              h('button', {
+                className: 'ain-btn',
+                title: '复制文章链接',
+                onClick: () => {
+                  const done = () => { setCopied('链接已复制'); setTimeout(() => setCopied(''), 1600); };
+                  fallbackCopy(detail.link, done);
+                },
+              }, copied === '链接已复制' ? '已复制 ✓' : '复制链接'),
+              h('button', {
+                className: 'ain-btn', onClick: () => setDetail(null),
+              }, '关闭'),
+              h('a', {
+                className: 'ain-btn primary', href: detail.link,
+                target: '_blank', rel: 'noreferrer', onClick: () => markRead(detail),
+              }, '查看原文 ↗'))));
+      })();
+
       // 回到顶部：作为 .ain-wrap 的兄弟节点渲染，避免被滚动容器的 overflow/transform 裁切
       const topBtn = h('button', {
         className: 'ain-top' + (showTop ? ' on' : ''),
@@ -1555,7 +1562,8 @@ window.__ModuleLoader__.load({
         },
       }, '↑');
       // display:contents 包裹层不参与布局，保证 .ain-wrap 仍是外层的 flex 子项
-      return h('div', { className: 'ain-frag', style: { display: 'contents' } }, __out, topBtn);
+      return h('div', { className: 'ain-frag', style: { display: 'contents' } },
+        __out, topBtn, drawer, weeklyModal, logModal);
     }
 
     // 极简单列 Markdown → HTML（仅周报用，输入来自本地生成的可信文本，仍做转义）

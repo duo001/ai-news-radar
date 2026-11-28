@@ -4,12 +4,12 @@ AI 资讯工作台：并发聚合 **526 个零密钥 RSS/Atom 信源** + 2 个�
 去重、套用中文翻译，既可作为 **DSH 工作台插件**常驻侧边栏，也可作为 **Agent Skill /
 命令行工具**独立运行。
 
-当前版本 **v0.18.19**。
+当前版本 **v0.18.20**。
 
 [![selftest](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml/badge.svg)](https://github.com/duo001/ai-news-radar/actions/workflows/selftest.yml)
 
 > CI 为**手动触发**（Actions 页 → selftest → Run workflow），在 Python 3.10 / 3.12 上跑
-> **27 组 / 359 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
+> **27 组 / 367 条**离线断言 + 语法检查 + 信源配置校验。日常提交前本地跑
 > `python engine/scripts/selftest.py` 即可，push 不触发 run。
 
 ## 能力概览
@@ -116,7 +116,7 @@ python3 radar.py discover --remote                     # AIHOT 远程开源清�
 python3 radar.py discover --list                       # 看待审队列
 python3 radar.py discover --accept id1,id2             # 采纳 → 写回 feeds.json
 
-python3 selftest.py                        # 离线回归（27 组 / 359 断言）
+python3 selftest.py                        # 离线回归（27 组 / 367 断言）
 ```
 
 Python 3.8+，资讯采集与翻译纯标准库。GitHub 项目雷达（legacy）额外需要

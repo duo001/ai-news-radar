@@ -1184,6 +1184,26 @@ def test_detail_drawer():
     check("onClick: () => { setActiveTopic(activeTopic === t ? '' : t); setDetail(null); }" in cli,
           "抽屉：主题标签可点筛选并关抽屉")
 
+    # v0.18.20：抽屉必须与 .ain-wrap 平级，否则被滚动容器裁掉（点卡片毫无反应）
+    check("const drawer = detail && (() => {" in cli,
+          "抽屉：先算成变量，不直接嵌在 .ain-wrap 里")
+    check("__out, topBtn, drawer, weeklyModal, logModal);" in cli,
+          "抽屉：与 .ain-wrap 平级挂在 fragment 里")
+    # v0.18.20 真正根因：__out = h(...), weekly && h(...), logOpen && h(...); 是逗号序列表达式，
+    # 除最后一个值外全部丢弃且无人接收 → 抽屉/周报/日志弹窗全都从未渲染（靠静态字符串断言查不出来）
+    check("let weeklyModal = null;" in cli and "let logModal = null;" in cli,
+          "浮层：周报/日志弹窗在 try 外声明变量")
+    check("weeklyModal = weekly && h(" in cli, "浮层：周报弹窗赋值而非逗号序列")
+    check("logModal = logOpen && h(" in cli, "浮层：日志弹窗赋值而非逗号序列")
+    check("        weekly && h('div', { className: 'ain-modal-mask'" not in cli
+          and "        logOpen && h('div', { className: 'ain-modal-mask'" not in cli,
+          "浮层：没有残留「逗号接一个裸表达式」的写法")
+    wrap_start = cli.find("h('div', { className: 'ain-wrap'")
+    drawer_use = cli.find("const drawer = detail && (() => {")
+    check(wrap_start > 0 and drawer_use > 0, "抽屉：wrap 与 drawer 都在")
+    check("className: 'ain-drawer-mask'" not in cli[wrap_start:drawer_use],
+          "抽屉：遮罩没有被塞进 .ain-wrap 的 children")
+
 
 def main():
     print("[1] 类目加载与扩展机制")
